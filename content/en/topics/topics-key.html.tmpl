@@ -1,0 +1,46 @@
++++
+type = "topics"
+title = "Quoted.FYI: Topics..."
+layout = "full-view"
+url = "!topics/{key}"
+searchable = "false"
+sitemap-ignored = "true"
++++
+<article class="list">
+    <header>
+        <h2>there are {{ .TotalNumTopics | intcomma }} <a href="/topics/">topics</a> and {{ .NumTopics | intcomma }} starting with "{{ .TopicCharacter }}"</h2>
+        <h3>quoted for your information...</h3>
+        <aside>
+            <div>[select a page of things]</div>
+            <ul>
+                {{- range $idx,$letter := .TopicLetters }}
+                    <li><a href="/topics/{{ $letter }}/">{{ $letter }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        {{ if gt (len .TopicGroups) 3 }}
+        <aside>
+            <div>[scroll to things starting with...]</div>
+            <ul>
+                {{- range $idx,$group := .TopicGroups }}
+                    <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        {{ end }}
+        <aside><div>[the topics...]</div></aside>
+    </header>
+    {{ range $idx,$group := .TopicGroups }}
+        <section id="{{ $group.Key }}"{{ if gt (len $group.Topics) 3 }} class="list"{{ end }}>
+            <blockquote>
+                <h4>beginning with "{{ $group.Key }}..."</h4>
+                <ul>
+                    {{- range $jdx,$topic := $group.Topics }}
+                        <li><a href="/t/{{ $topic.Key }}">{{ $topic.Name }}</a></li>
+                    {{- end }}
+                </ul>
+                <footer>{{ len $group.Topics }} topic{{ len $group.Topics | pluralize "s" }}</footer>
+            </blockquote>
+        </section>
+    {{ end }}
+</article>

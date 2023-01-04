@@ -1,0 +1,66 @@
+<head>
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{{- .Title -}}</title>
+    {{- range $idx,$tag := .HtmlHeadTags }}
+        {{ $tag }}
+    {{- end }}
+    {{- if .MetaRefresh }}
+        <meta http-equiv = "refresh" content = "{{ .MetaRefresh }}" />
+    {{- end }}
+    <meta name="title" content="{{ .Title }}"/>
+    {{- if .Description }}
+    <meta name="description" content="{{ .Description }}"/>
+    {{- end }}
+    {{- if fsExists "/favicon.ico" }}
+    <link href="{{ fsUrl "/favicon.ico" }}" rel="shortcut icon" type="image/x-icon"/>
+    {{ end -}}
+
+    <meta property="og:title" content="{{ .Title }}"/>
+    <meta property="og:site_name" content="{{ .SiteInfo.Name }}"/>
+    <meta property="og:image" content="/media/quoted_fyi.png"/>
+    <meta property="og:property" content="website"/>
+    <meta property="og:url" content="{{ .BaseUrl }}"/>
+    <meta property="og:website" content="{{ .BaseUrl }}"/>
+    {{- if ne .Language "und" }}
+    <meta property="og:locale" content="{{ .Language }}"/>
+    {{- end }}
+    <meta property="twitter:card" content="{{ .Description }}"/>
+    {{- if .TwitterSite }}
+        <meta property="twitter:site" content="{{ .TwitterSite }}"/>
+    {{ end -}}
+    {{- if .TwitterCreator }}
+        <meta property="twitter:creator" content="{{ .TwitterCreator }}"/>
+    {{ end -}}
+
+    {{- range $url := .Theme.Context.PageFontStyleSheets }}
+    <link rel="stylesheet" href="{{ if isUrl $url }}{{ $url | unescapeHTML | asHTMLAttr }}{{ else }}{{ fsUrl $url }}{{ end }}"/>
+    {{- end }}
+
+    {{- if gt (len .Theme.RootStyles) 0 }}
+        <style>
+            :root {
+            {{- range $v := .Theme.RootStyles }}
+            {{ $v -}}
+            {{- end }}
+            }
+        </style>
+    {{- end }}
+
+    {{- if gt (len .Theme.BlockStyles) 0 }}
+        <style>
+            {{- range $idx, $k := (sortedKeys .Theme.BlockStyles) }}
+            [data-block-theme="{{ $k }}"] {
+                {{- range $style := index ($.Theme.BlockStyles) $k }}
+                {{ $style }}
+                {{- end }}
+            }
+            {{- end }}
+        </style>
+    {{- end }}
+
+    {{- range $url := .Theme.Context.PageStyleSheets }}
+    <link rel="stylesheet" href="{{ if isUrl $url }}{{ $url }}{{ else }}{{ fsUrl $url }}{{ end }}"/>
+    {{- end }}
+</head>

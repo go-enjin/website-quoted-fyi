@@ -1,0 +1,100 @@
++++
+type = "search"
+title = "Quoted.FYI: Search"
+description = "Search for content in the Go-Enjin website"
+layout = "full-view"
+searchable = "false"
+sitemap-ignored = "true"
+cache-control = "none"
+default-num-per-page = 100
++++
+<article class="{{ if .SiteSearchResults }}list{{ else }}single{{ end }}">
+
+    <header>
+        {{ if .SiteSearchResults }}
+            <h2>Searching for <a href="{{ .SiteSearchPath }}/:{{ .SiteSearchQuery }}">{{ .SiteSearchQuery | asHTML }}</a></h2>
+            <h3>found {{ .SiteSearchResults.Total | intcomma }} total quote{{ .SiteSearchResults.Total | pluralize "s" }}</h3>
+            <aside>
+                <section class="wide">
+                    <blockquote>
+                        <h4>relative to</h4>
+                        <form method="get" action="{{ .SiteSearchPath }}">
+                            <input type="hidden" name="nonce" value="{{ Nonce "site-search-form" }}" />
+                            <p><input class="large" type="text" name="query" placeholder="Search" value="{{ .SiteSearchQuery | asHTML }}" /></p>
+                        </form>
+                        <footer>your query</footer>
+                    </blockquote>
+                </section>
+                {{ if gt .SiteSearchPages 1 }}
+                <ul class="pagenav">
+                    <li>{{ add .SiteSearchPage 1 }} of {{ .SiteSearchPages }} pages</li>
+                    <li class="hide-mobile">up to {{ .SiteSearchSize }} quotes per page</li>
+                    {{ if gt .SiteSearchPage 0 }}
+                    <li><a href="/search/:{{ .SiteSearchQuery }}/{{ .SiteSearchSize }}/0">first</a></li>
+                    <li><a href="/search/:{{ .SiteSearchQuery }}/{{ .SiteSearchSize }}/{{ sub .SiteSearchPage 1 }}">previous</a></li>
+                    {{ end }}
+                    {{ if lt .SiteSearchPage (sub .SiteSearchPages 1) }}
+                    <li><a href="/search/:{{ .SiteSearchQuery }}/{{ .SiteSearchSize }}/{{ add .SiteSearchPage 1 }}">next</a></li>
+                    <li><a href="/search/:{{ .SiteSearchQuery }}/{{ .SiteSearchSize }}/{{ sub .SiteSearchPages 1 }}">last</a></li>
+                    {{ end }}
+                </ul>
+                {{ end }}
+            </aside>
+            {{ if gt (len .SiteSearchResults.Hits) 10 }}
+                <aside>
+                    <div>[scroll to things starting with...]</div>
+                    <ul>
+                        {{ range $idx,$group := .QuotedGroups }}
+                            <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
+                        {{ end }}
+                    </ul>
+                </aside>
+            {{ end }}
+        {{ else }}
+            <h2>Search</h2>
+            <h3>for things</h3>
+        {{ end }}
+    </header>
+
+    {{ if .SiteSearchResults }}
+
+        {{ if eq (len .QuotedGroups) 0 }}
+            {{ if .SiteSearchError }}
+                <p>Search error: {{ .SiteSearchError }}</p>
+            {{ else }}
+                <p>No quotes found matching your query.</p>
+            {{ end }}
+        {{ else }}
+            {{- range $idx,$group := .QuotedGroups }}
+                {{ range $jdx,$author := $group.Authors }}
+                    <section{{ if eq $jdx 0 }} id="{{ $group.Key }}"{{ end }}>
+                        <blockquote>
+                            <h4><a href="/a/{{ $author.Key }}">{{ $author.Name }}</a></h4>
+                            <ul>
+                                {{ range $kdx,$quote := $author.Quotes }}
+                                    <li><a href="{{ $quote.Url }}">{{ $quote.Hash }}</a></li>
+                                {{ end }}
+                            </ul>
+                            <footer>{{ len $author.Quotes }} quoted</footer>
+                        </blockquote>
+                    </section>
+                {{- end }}
+            {{- end }}
+        {{ end }}
+
+    {{ else }}
+
+        <section>
+            <blockquote>
+                <h4>of interest</h4>
+                <form method="get" action="{{ .SiteSearchPath }}">
+                    <input type="hidden" name="nonce" value="{{ Nonce "site-search-form" }}" />
+                    <p><input class="large" type="text" name="query" placeholder="Search" value="{{ .SiteSearchQuery | asHTML }}" /></p>
+                </form>
+                <footer>Press &lt;ENTER&gt; to submit</footer>
+            </blockquote>
+        </section>
+
+    {{ end }}
+
+</article>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="{{ .Request.Language }}">
+  {{ template "partials/head.tmpl" . }}
+  <body
+          {{- if .Type }} data-page-type="{{ .Type }}"{{ end -}}
+          {{- if .Layout }} data-page-layout="{{ .Layout }}"{{ end -}}
+          {{- if .Format }} data-page-format="{{ .Format | replace ".tmpl" }}"{{ end -}}
+          {{- if .Archetype }} data-page-archetype="{{ .Archetype }}"{{ end -}}
+  >
+    {{ template "partials/header.tmpl" . }}
+    <article class="single">
+      {{ .Content }}
+    </article>
+    {{ template "partials/footer.tmpl" . }}
+  </body>
+</html>

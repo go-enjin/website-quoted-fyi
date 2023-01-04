@@ -1,0 +1,20 @@
++++
+type = "random"
+random = "q"
+title = "Quoted.FYI: redirecting to the next random quote"
+searchable = "false"
+sitemap-ignored = "true"
+cache-control = "none"
+redirect = [ "/r/quote" ]
++++
+<header>
+    <h2>Redirecting to</h2>
+    <h3>the next random quote</h3>
+</header>
+<section>
+    <blockquote>
+        <h4>in 5 seconds...</h4>
+        <p><a href="{{ .QuoteUrl }}">{{ .QuoteHash }}</a>.</p>
+        <footer>destination</footer>
+    </blockquote>
+</section>

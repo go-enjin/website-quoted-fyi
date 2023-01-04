@@ -1,0 +1,25 @@
++++
+type = "build"
+title = "Quoted.FYI: Build"
+searchable = "false"
+sitemap-ignored = "true"
++++
+<header>
+    <h2><a href="/build/">Build</a> up to a quote</h2>
+    <h3>by selecting one word at a time from any...</h3>
+    <aside>
+        <div>[select a page of things]</div>
+        <ul>
+            {{- range $idx,$letter := .FirstWordFirstLetters }}
+                <li><a href="/build/{{ $letter }}/">{{ $letter }}</a></li>
+            {{- end }}
+        </ul>
+    </aside>
+</header>
+<section>
+    <blockquote>
+        <h4>organized by the first letter</h4>
+        <p>Please select a page of first words from the alphabetical listing above.</p>
+        <footer>first words</footer>
+    </blockquote>
+</section>

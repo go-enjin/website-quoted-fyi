@@ -1,0 +1,67 @@
++++
+type = "building"
+title = "Quoted.FYI: building..."
+layout = "full-view"
+url = "!b/{key}"
+searchable = "false"
+sitemap-ignored = "true"
++++
+<article class="{{ if gt .NumNextWordGroups 1 }}list{{ else }}single{{ end }}">
+    <header>
+        {{- if eq .NumBuiltQuotes 1 }}
+            <h2><a href="/build/">Built</a> up to: "{{ range $idx,$link := .BuildPathLinks }}{{ if gt $idx 0 }} {{ end }}<a href="/b/{{ $link.Path }}">{{ $link.Word }}</a>{{ end }}"</h2>
+            <h3>and found singular specificity</h3>
+        {{- else if and (gt .NumBuiltQuotes 1) (eq .NumNextWordGroups 0) }}
+            <h2><a href="/build/">Built</a> up to: "{{ range $idx,$link := .BuildPathLinks }}{{ if gt $idx 0 }} {{ end }}<a href="/b/{{ $link.Path }}">{{ $link.Word }}</a>{{ end }}"</h2>
+            <h3>and found plural specificity</h3>
+        {{- else }}
+            <h2><a href="/build/">Building</a> upon: "{{ range $idx,$link := .BuildPathLinks }}{{ if gt $idx 0 }} {{ end }}<a href="/b/{{ $link.Path }}">{{ $link.Word }}</a>{{ end }}"</h2>
+            <h3>by selecting another word...</h3>
+        {{- end }}
+        {{- if gt .NumNextWordGroups 3 }}
+        <aside>
+            <div>[scroll to words starting with...]</div>
+            <ul>
+                {{- range $idx,$group := .NextWordGroups }}
+                    <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        {{- end }}
+        {{- if and (ne .NumBuiltQuotes 1) (gt .NumNextWordGroups 3) }}
+        <aside><div>[next words...]</div></aside>
+        {{- end }}
+    </header>
+    {{- if and (ne .NumBuiltQuotes 1) (ne .NumNextWordGroups 0) }}
+        {{- range $idx,$group := .NextWordGroups }}
+            <section{{ if ne $group.Key "" }} id="{{ $group.Key }}"{{ end }}>
+                <blockquote>
+                    {{ if ne $group.Key "" }}
+                        <h4>beginning with "{{ $group.Key }}..."</h4>
+                    {{ else }}
+                        <h4>next words</h4>
+                    {{ end }}
+                    <ul>
+                        {{- range $jdx,$word := $group.Words }}
+                            <li><a href="/b/{{ $.BuildPath }}-{{ $word }}">{{ $word }}</a></li>
+                        {{- end }}
+                    </ul>
+                    <footer>{{ len $group.Words }} word{{ len $group.Words | pluralize "s" }}</footer>
+                </blockquote>
+            </section>
+        {{- end }}
+    {{- end }}
+    {{- if and (gt .NumBuiltQuotes 0) (lt .NumBuiltQuotes 25) }}
+        <section>
+            <blockquote>
+                <h4>quoted for your information</h4>
+                <ul>
+                    {{- range $idx,$quote := .BuiltQuotes }}
+                        <li><a href="{{ $quote.Url }}">{{ $quote.Hash }}</a></li>
+                    {{- end }}
+                </ul>
+                <footer>{{ len .BuiltQuotes }} match{{ len .BuiltQuotes | pluralize "es" }}</footer>
+            </blockquote>
+        </section>
+    {{- end }}
+</article>

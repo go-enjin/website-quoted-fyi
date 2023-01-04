@@ -1,0 +1,46 @@
++++
+type = "builder"
+title = "Quoted.FYI: Build"
+layout = "full-view"
+url = "!build/{key}"
+searchable = "false"
+sitemap-ignored = "true"
++++
+<article class="list">
+    <header>
+        <h2><a href="/build/">Build</a> up to a quote</h2>
+        <h3>by selecting one word at a time from any...</h3>
+        <aside>
+            <div>[select a first-word first-letter]</div>
+            <ul>
+                {{- range $idx,$letter := .FirstWordFirstLetters }}
+                    <li><a href="/build/{{ $letter }}/">{{ $letter }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        {{ if gt (len .FirstWordGroups) 4 }}
+            <aside>
+                <div>[scroll to first-words starting with...]</div>
+                <ul>
+                    {{- range $idx,$group := .FirstWordGroups }}
+                        <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
+                    {{- end }}
+                </ul>
+            </aside>
+        {{ end }}
+        <aside><div>[first words...]</div></aside>
+    </header>
+    {{ range $idx,$group := .FirstWordGroups }}
+        <section id="{{ $group.Key }}"{{ if gt (len $group.Words) 3 }} class="list"{{ end }}>
+            <blockquote>
+                <h4>beginning with "{{ $group.Key }}..."</h4>
+                <ul>
+                    {{- range $jdx,$word := $group.Words }}
+                        <li><a href="/b/{{ $word }}/">{{ $word }}</a></li>
+                    {{- end }}
+                </ul>
+                <footer>{{ len $group.Words }} word{{ len $group.Words | pluralize "s" }}</footer>
+            </blockquote>
+        </section>
+    {{ end }}
+</article>

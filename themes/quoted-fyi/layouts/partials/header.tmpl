@@ -1,0 +1,8 @@
+<header id="top-of-page">
+    <h1><a href="/">Quoted.FYI</a></h1>
+    <form method="get" action="{{ .SiteSearchPath }}">
+        <input type="hidden" name="nonce" value="{{ Nonce "site-search-form" }}" />
+        <input type="text" name="query" placeholder="Search" value="{{ .SiteSearchQuery | asHTML }}" />
+    </form>
+    <nav><a href="/build/">build</a>, <a href="/random/">random</a>, <a href="/authors/">authors</a>, <a href="/topics/">topics</a> and <a href="/about/">about</a>.</nav>
+</header>

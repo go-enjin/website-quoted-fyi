@@ -1,0 +1,50 @@
++++
+type = "author"
+title = "Quoted.FYI: Author"
+layout = "full-view"
+url = "!a/{key}"
+searchable = "false"
+sitemap-ignored = "true"
++++
+<article class="list">
+    <header>
+        <h2>the author <a href="/a/{{ .AuthorKey }}">{{ .AuthorName }}</a></h2>
+        <h3>has been quoted {{ .TotalQuotes | intcomma }} times in {{ .TotalTopics }} topics...</h3>
+        {{- if gt (len .QuoteGroups) 0 }}
+        <aside>
+            <div>[scroll to things starting with...]</div>
+            <ul>
+                {{- range $idx,$group := .QuoteGroups }}
+                    <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        {{- end }}
+    </header>
+    {{- range $idx,$groups := .QuoteGroups }}
+        {{- range $jdx,$group := $groups.Groups }}
+            <section{{ if eq $jdx 0 }} id="{{ $groups.Key }}"{{ end }}{{ if gt (len $group.Quotes) 3 }} class="list"{{ end }}>
+                <blockquote>
+                    <h4>on <a href="/t/{{ $group.Key }}">{{ $group.Key }}</a></h4>
+                    <ul>
+                        {{- range $kdx,$quote := $group.Quotes }}
+                            <li><a href="{{ $quote.Url }}">{{ $quote.Hash }}</a></li>
+                        {{- end }}
+                    </ul>
+                    <footer>{{ len $group.Quotes }} quoted</footer>
+                </blockquote>
+            </section>
+        {{- end }}
+    {{- end }}
+    <section{{ if gt (len .QuoteOtherTopics) 3 }} class="list"{{ end }}>
+        <blockquote>
+            <h4>and other topics...</h4>
+            <ul>
+                {{- range $idx,$quote := .QuoteOtherTopics }}
+                    <li><a href="{{ $quote.Url }}">{{ $quote.Hash }}</a></li>
+                {{- end }}
+            </ul>
+            <footer>{{ len .QuoteOtherTopics }} quoted</footer>
+        </blockquote>
+    </section>
+</article>

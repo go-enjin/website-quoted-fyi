@@ -1,0 +1,27 @@
++++
+type = "query"
+title = "Quoted.FYI: Authors"
+searchable = "false"
+sitemap-ignored = "true"
+[select]
+    authors = "SELECT DISTINCT .QuoteAuthor"
++++
+<header>
+    <h2>there are {{ (len .Selected.Authors) | intcomma }} <a href="/authors/">authors</a></h2>
+    <h3>quoted for your information...</h3>
+    <aside>
+        <div>[select a page of things]</div>
+        <ul>
+            {{- range $idx,$letter := (sortedLastNameFirstLetters .Selected.Authors) }}
+                <li><a href="/authors/{{ $letter }}/">{{ $letter }}</a></li>
+            {{- end }}
+        </ul>
+    </aside>
+</header>
+<section>
+    <blockquote>
+        <h4>organized by the first letter</h4>
+        <p>Please select a page of author names from the alphabetical listing above.</p>
+        <footer>authors</footer>
+    </blockquote>
+</section>

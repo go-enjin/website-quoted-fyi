@@ -1,0 +1,45 @@
+name = "Quoted.Fyi"
+parent = "semantic-enjin"
+license = "Apache 2.0"
+licenselink = "https://go-enjin.org/license"
+description = "Quoted.Fyi website theme."
+homepage = "https://quoted.fyi/"
+
+[author]
+    name = "The Go-Enjin Team"
+    homepage = "https://go-enjin.org/"
+
+[semantic.site]
+    page.stylesheets = [
+        "/css/quoted-fyi.css"
+    ]
+
+[semantic.style]
+    color.working = "#ff901e"
+    color.recover = "#708090"
+    color.resting = "#d3d3d3"
+    color.meditate = "#ffffff"
+    color.social = "#ffd700"
+    color.active = "#ffa500"
+    color.material = "#0277bd"
+
+    color.light = "#ffffff"
+    color.dark = "#888888"
+
+    overlay.light.bg = "rgba(0,0,0,0.34)"
+    overlay.light.fg = "var(--color--light)"
+    overlay.dark.bg = "rgba(0,0,0,0.77)"
+    overlay.dark.fg = "var(--color--light)"
+
+    primary.fg = "var(--color--dark)"
+    primary.bg = "var(--color--light)"
+
+    secondary.fg = "var(--color--dark)"
+    secondary.bg = "var(--color--light)"
+
+    accent.fg = "var(--color--dark)"
+    accent.bg = "var(--color--light)"
+    highlight.fg = "var(--color--dark)"
+    highlight.bg = "var(--color--light)"
+    alternate.fg = "var(--color--dark)"
+    alternate.bg = "var(--color--light)"

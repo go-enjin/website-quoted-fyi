@@ -1,0 +1,55 @@
++++
+type = "word"
+title = "Quoted.FYI: Word"
+layout = "full-view"
+url = "!w/{key}"
+searchable = "false"
+sitemap-ignored = "true"
++++
+<article class="list">
+    <header>
+        <h2>the word <a href="/w/{{ .Word }}/">{{ .Word }}</a></h2>
+        <h3>is used in {{ .TotalQuotes | intcomma }} quote{{ .TotalQuotes | pluralize "s" }}, covering {{ .TotalTopics }} topics...</h3>
+        {{- if gt .TotalNumPages 1 }}
+            <aside>
+                <ul class="pagenav">
+                    <li>{{ add .PageNumber 1 }} of {{ .TotalNumPages }} pages</li>
+                    <li class="hide-mobile">up to {{ .NumPerPage }} quotes per page</li>
+                    {{ if gt .PageNumber 0 }}
+                        <li><a href="/w/{{ .Word }}/{{ .NumPerPage }}/0/">first</a></li>
+                        <li><a href="/w/{{ .Word }}/{{ .NumPerPage }}/{{ sub .PageNumber 1 }}/">previous</a></li>
+                    {{ end }}
+                    {{ if lt .PageNumber (sub .TotalNumPages 1) }}
+                        <li><a href="/w/{{ .Word }}/{{ .NumPerPage }}/{{ add .PageNumber 1 }}/">next</a></li>
+                        <li><a href="/w/{{ .Word }}/{{ .NumPerPage }}/{{ sub .TotalNumPages 1 }}/">last</a></li>
+                    {{ end }}
+                </ul>
+            </aside>
+        {{- end }}
+        {{- if gt (len .WordGroups) 0 }}
+        <aside>
+            <div>[scroll to things starting with...]</div>
+            <ul>
+                {{- range $idx,$group := .WordGroups }}
+                    <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        {{- end }}
+    </header>
+    {{- range $idx,$group := .WordGroups}}
+        {{- range $jdx,$topic := $group.Topics }}
+            <section{{ if eq $jdx 0 }} id="{{ $group.Key }}"{{ end }}{{ if gt (len $topic.Quotes) 3 }} class="list"{{ end }}>
+                <blockquote>
+                    <h4>on the topic of <a href="/t/{{ $topic.Key }}">{{ $topic.Name }}</a></h4>
+                    <ul>
+                        {{- range $kdx,$quote := $topic.Quotes }}
+                            <li><a href="{{ $quote.Url }}">{{ $quote.Hash }}</a></li>
+                        {{- end }}
+                    </ul>
+                    <footer>{{ len $topic.Quotes }} quoted</footer>
+                </blockquote>
+            </section>
+        {{- end }}
+    {{- end }}
+</article>

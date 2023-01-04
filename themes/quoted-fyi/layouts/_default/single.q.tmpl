@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="{{ .Request.Language }}">
+  {{ template "partials/head.tmpl" . }}
+  <body
+          {{- if .Type }} data-page-type="{{ .Type }}"{{ end -}}
+          {{- if .Layout }} data-page-layout="{{ .Layout }}"{{ end -}}
+          {{- if .Format }} data-page-format="{{ .Format | replace ".tmpl" }}"{{ end -}}
+          {{- if .Archetype }} data-page-archetype="{{ .Archetype }}"{{ end -}}
+  >
+    {{ template "partials/header.tmpl" . }}
+    <article class="single">
+      <header>
+        <h2>the <a href="/q/{{ .QuoteShasum }}">{{ .QuoteHash }}</a><span class="b"><a href="/b/{{ .QuoteBuilderKey }}">b</a></span> quote</h2>
+        <h3>
+          on the topics of
+          {{ range $idx,$name := .QuoteCategories -}}
+            <a href="/t/{{ $name }}">{{ $name }}</a>
+            {{- if lt $idx (sub (len $.QuoteCategories) 2) }}, {{ else if lt $idx (sub (len $.QuoteCategories) 1) }} and {{ end -}}
+          {{- end }}
+        </h3>
+      </header>
+      <section>
+        <blockquote>
+          <h4>quoted for your information</h4>
+          <p>
+            {{ .Content }}
+          </p>
+          <footer>
+            <a href="/a/{{ .QuoteAuthorKey }}">{{ .QuoteAuthor }}</a><br/>
+            <span class="social">(share on <a href="{{ .QuoteShareTwitterUrl }}" target="_blank" rel="noopener noreferrer">twitter</a> or <a href="{{ .QuoteShareEmailUrl }}" target="_blank" rel="noopener noreferrer">email</a>.)</span>
+          </footer>
+        </blockquote>
+      </section>
+    </article>
+    {{ template "partials/footer.tmpl" . }}
+  </body>
+</html>

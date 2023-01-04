@@ -1,0 +1,20 @@
++++
+type = "random"
+random = "w"
+title = "Quoted.FYI: redirecting to the next random word"
+searchable = "false"
+sitemap-ignored = "true"
+cache-control = "none"
+redirect = [ "/r/word" ]
++++
+<header>
+    <h2>Redirecting to</h2>
+    <h3>the next random word</h3>
+</header>
+<section>
+    <blockquote>
+        <h4>in 5 seconds...</h4>
+        <p><a href="/w/{{ .Word }}">{{ .Word }}</a>.</p>
+        <footer>destination</footer>
+    </blockquote>
+</section>

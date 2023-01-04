@@ -1,0 +1,44 @@
++++
+type = "authors"
+title = "Quoted.FYI: Authors..."
+layout = "full-view"
+url = "!authors-key"
+searchable = "false"
+sitemap-ignored = "true"
++++
+<article class="list">
+    <header>
+        <h2>there are {{ .TotalNumAuthors | intcomma }} <a href="/authors/">authors</a> and {{ .NumAuthors | intcomma }} starting with "{{ .AuthorCharacter }}"</h2>
+        <h3>quoted for your information...</h3>
+        <aside>
+            <div>[select a page of things]</div>
+            <ul>
+                {{- range $idx,$letter := .AuthorLetters }}
+                    <li><a href="/authors/{{ $letter }}/">{{ $letter }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        <aside>
+            <div>[scroll to things starting with...]</div>
+            <ul>
+                {{- range $idx,$group := .AuthorGroups }}
+                    <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
+                {{- end }}
+            </ul>
+        </aside>
+        <aside><div>[the authors...]</div></aside>
+    </header>
+    {{ range $idx,$group := .AuthorGroups }}
+        <section id="{{ $group.Key }}"{{ if gt (len $group.Authors) 3 }} class="list"{{ end }}>
+            <blockquote>
+                <h4>beginning with "{{ $group.Key }}..."</h4>
+                <ul>
+                    {{- range $jdx,$author := $group.Authors }}
+                        <li><a href="/a/{{ $author.Key }}">{{ $author.Name }}</a></li>
+                    {{- end }}
+                </ul>
+                <footer>{{ len $group.Authors }} author{{ len $group.Authors | pluralize "s" }}</footer>
+            </blockquote>
+        </section>
+    {{ end }}
+</article>
