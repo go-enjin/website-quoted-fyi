@@ -17,7 +17,7 @@
 #: uncomment to echo instead of execute
 #CMD=echo
 
-ENJIN_MK_VERSION = v0.1.9
+ENJIN_MK_VERSION = v0.1.10
 
 SHELL = /bin/bash
 
@@ -42,8 +42,8 @@ GOPKG_KEYS ?=
 CLEAN      ?= ${APP_NAME} cpu.pprof mem.pprof
 DIST_CLEAN ?=
 
-GOLANG ?= 1.18.5
-GO_MOD ?= 1018
+GOLANG ?= 1.19.5
+GO_MOD ?= 1019
 NODEJS ?=
 
 RELEASE_BUILD ?= false
