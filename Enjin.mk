@@ -17,7 +17,7 @@
 #: uncomment to echo instead of execute
 #CMD=echo
 
-ENJIN_MK_VERSION = v0.1.10
+ENJIN_MK_VERSION = v0.1.12
 
 SHELL = /bin/bash
 
@@ -41,19 +41,22 @@ GOPKG_KEYS ?=
 
 CLEAN      ?= ${APP_NAME} cpu.pprof mem.pprof
 DIST_CLEAN ?=
+EXTRA_CLEAN ?=
 
-GOLANG ?= 1.19.5
-GO_MOD ?= 1019
+EXTRA_BUILD_TARGET_DEPS ?=
+
+GOLANG ?= 1.20.1
+GO_MOD ?= 1020
 NODEJS ?=
 
 RELEASE_BUILD ?= false
 
 GO_ENJIN_PKG ?= github.com/go-enjin/be
 
-BE_PATH ?= $(call _be_local_path)
+BE_PATH ?= ../be
 
 ENJENV_BIN  ?= $(shell which enjenv)
-ENJENV_EXE  ?= $(call _enjenv_bin,${ENJENV_BIN})
+ENJENV_EXE  ?= $(call _enjenv_bin,"${ENJENV_BIN}")
 ENJENV_URL  ?= https://github.com/go-enjin/enjenv-heroku-buildpack/raw/trunk/bin/enjenv
 ENJENV_PKG  ?= github.com/go-enjin/enjenv/cmd/enjenv@latest
 ENJENV_DIR_NAME ?= .enjenv
@@ -67,6 +70,9 @@ RELEASE ?= $(call _be_release)
 
 PROFILE_PATH ?= .
 
+EXTRA_LDFLAGS ?=
+EXTRA_GCFLAGS ?=
+
 define _check_make_target =
 $(shell \
 	if (make -n "$(1)" 2>&1) | head -1 | grep -q "No rule to make target"; then \
@@ -76,23 +82,16 @@ $(shell \
 	fi)
 endef
 
-define _be_local_path =
-$(shell \
-	if [ "${BE_LOCAL_PATH}" != "" -a -d "${BE_LOCAL_PATH}" ]; then \
-		echo "${BE_LOCAL_PATH}"; \
-	elif [ "${GOPATH}" != "" ]; then \
-		if [ -d "${GOPATH}/src/${GO_ENJIN_PKG}" ]; then \
-			echo "${GOPATH}/src/${GO_ENJIN_PKG}"; \
-		fi; \
-	fi)
-endef
-
 define _be_version =
-$(shell ${ENJENV_EXE} git-tag --untagged ${UNTAGGED_VERSION})
+$(shell if [ -x "${ENJENV_EXE}" ]; then \
+	${ENJENV_EXE} git-tag --untagged ${UNTAGGED_VERSION}; \
+fi)
 endef
 
 define _be_release =
-$(shell ${ENJENV_EXE} rel-ver)
+$(shell if [ -x "${ENJENV_EXE}" ]; then \
+	${ENJENV_EXE} rel-ver; \
+fi)
 endef
 
 define _enjenv_bin =
@@ -100,10 +99,12 @@ $(shell \
 	if [ "${ENJENV_BIN}" != "" -a -x "${ENJENV_BIN}" ]; then \
 		echo "${ENJENV_BIN}"; \
 	else \
-		if [ "$(1)" != "" ]; then \
+		if [ "$(1)" != "" -a -x "$(1)" ]; then \
 			echo "$(1)"; \
 		elif [ -d .bin -a -x .bin/enjenv ]; then \
 			echo "${PWD}/.bin/enjenv"; \
+		else \
+			echo "ERROR"; \
 		fi; \
 	fi)
 endef
@@ -111,7 +112,7 @@ endef
 define _enjenv_path =
 $(shell \
 	if [ -x "${ENJENV_EXE}" ]; then \
-		${ENJENV_EXE}; \
+		echo "${ENJENV_EXE}"; \
 	elif [ -d "./${ENJENV_DIR}" ]; then \
 		echo "${PWD}/${ENJENV_DIR}"; \
 	fi)
@@ -149,8 +150,21 @@ endef
 define _build_args =
 $(shell \
 	if [ "${RELEASE_BUILD}" == "true" ]; then \
-		echo "--optimize"; \
+		echo " --optimize "; \
 	fi)
+endef
+
+define _upx_build =
+	if [ -x /usr/bin/upx ]; then \
+		echo -n "# packing: $(1) - "; \
+		du -hs "$(1)" | awk '{print $$1}'; \
+		/usr/bin/upx -qq -7 --no-color --no-progress "$(1)"; \
+		echo -n "# packed: $(1) - "; \
+		du -hs "$(1)" | awk '{print $$1}'; \
+		sha256sum "$(1)"; \
+	else \
+		echo "# upx command not found, skipping binary packing stage"; \
+	fi
 endef
 
 define _validate_extra_pkgs =
@@ -188,14 +202,6 @@ $(call _validate_extra_pkgs) \
 $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_unlocal,$($(key)_GO_PACKAGE));))
 endef
 
-define _env_build_vars =
-	BE_APP_NAME="${APP_NAME}" \
-	BE_SUMMARY="${APP_SUMMARY}" \
-	BE_ENV_PREFIX="${ENV_PREFIX}" \
-	BE_VERSION="${VERSION}" \
-	BE_RELEASE="${RELEASE}"
-endef
-
 define _env_run_vars =
 	${ENV_PREFIX}_DEBUG="${DEBUG}" \
 	${ENV_PREFIX}_LISTEN="${LISTEN}" \
@@ -225,7 +231,7 @@ fi
 endef
 
 define _yarn_run =
-if ${ENJENV_EXE} features has yarn 2> /dev/null; then \
+if [ "${HAS_YARN}" == "true" ]; then \
 	cd $(1) > /dev/null; \
 	${CMD} ${ENJENV_EXE} yarn -- $(2) 2> /dev/null || true; \
 	cd - > /dev/null; \
@@ -380,32 +386,11 @@ endif
 	@echo
 	@echo "Enjin.mk Version: ${ENJIN_MK_VERSION}"
 
-_enjenv: gobin=$(shell which go)
 _enjenv:
-	@if [ "${ENJENV_EXE}" = "" ]; then \
-		if [ "${gobin}" = "" ]; then \
-			echo "# downloading enjenv..."; \
-			wget -q -c ${ENJENV_URL}; \
-			chmod +x ./enjenv; \
-			echo "# installing enjenv..."; \
-			if [ "${GOPATH}" = "" ]; then \
-				mkdir -v .bin; \
-				mv -v ./enjenv ./.bin/; \
-				export ENJENV_EXE=$(strip ${PWD}/.bin/enjenv); \
-			else \
-				mv -v ./enjenv ${GOPATH}/bin/enjenv; \
-				export ENJENV_EXE=$(strip ${GOPATH}/bin/enjenv); \
-			fi; \
-		else \
-			echo "# go install enjenv..."; \
-			go install ${ENJENV_PKG}; \
-			export ENJENV_EXE=$(strip ${GOPATH}/bin/enjenv); \
-		fi; \
-	fi; \
-	if [ -x "${ENJENV_EXE}" ]; then \
+	@if [ "x${ENJENV_EXE}" != "x" -a -x "${ENJENV_EXE}" ]; then \
 		echo "# using ${ENJENV_EXE}"; \
 	else \
-		echo "# enjenv not found ${ENJENV_EXE}"; \
+		echo "# critical error: enjenv not found"; \
 		false; \
 	fi
 
@@ -463,6 +448,7 @@ ifdef override_clean
 	@$(call override_clean)
 else
 	@$(call _clean,${CLEAN})
+	@$(call _clean,${EXTRA_CLEAN})
 endif
 
 dist-clean: clean
@@ -476,24 +462,34 @@ else
 	@$(call _clean,${DIST_CLEAN})
 endif
 
-build: _golang
+build: export BE_APP_NAME=${APP_NAME}
+build: export BE_SUMMARY=${APP_SUMMARY}
+build: export BE_ENV_PREFIX=${ENV_PREFIX}
+build: export BE_VERSION=${VERSION}
+build: export BE_RELEASE=${RELEASE}
+build: export ENJENV_GO_LDFLAGS=${EXTRA_LDFLAGS}
+build: export ENJENV_GO_GCFLAGS=${EXTRA_GCFLAGS}
+build: _golang ${EXTRA_BUILD_TARGET_DEPS}
+ifdef pre_build
+	@$(call pre_build)
+endif
 ifdef override_build
 	@$(call override_build)
 else
 	@echo "$(call _build_label): ${VERSION}, ${RELEASE}"
-	@${CMD} \
-		$(call _env_build_vars) \
-		${ENJENV_EXE} golang build \
-			$(call _build_args) \
-			-- -v $(call _build_tags)
+	@${CMD} ${ENJENV_EXE} golang build $(call _build_args) -- -v $(call _build_tags)
 	@if [ -x "./${APP_NAME}" ]; then \
 		echo "# produced: ${APP_NAME}"; \
 		sha256sum ./${APP_NAME}; \
 	fi
 endif
+ifdef post_build
+	@$(call post_build)
+endif
 
 release: RELEASE_BUILD="true"
 release: build
+	@$(call _upx_build,"${APP_NAME}")
 
 RUN_ARGV ?=
 
@@ -503,14 +499,30 @@ define _run =
 		false; \
 	fi
 	@echo "# running ${APP_NAME} -- ${RUN_ARGV}"
-	@${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"
+	@if [ "${DEBUG}" == "true" ]; then \
+		if [ "${DLV_DEBUG}" == "true" ]; then \
+			$(call _env_run_vars) \
+			dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient \
+				exec -- ./${APP_NAME} ${RUN_ARGV}; \
+		else \
+			${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
+		fi; \
+	else \
+		${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
+	fi
 endef
 
 run:
+ifdef pre_run
+	@$(call pre_run)
+endif
 ifdef override_run
 	@$(call override_run)
 else
 	@$(call _run)
+endif
+ifdef post_run
+	@$(call post_run)
 endif
 
 con-%: export CON_TAG=$(patsubst con-%,%,$@)
@@ -524,6 +536,9 @@ endif
 
 dev: DEBUG=true
 dev: run
+
+dlv: DLV_DEBUG=true
+dlv: dev
 
 _audit: _golang
 	@$(call _golang_nancy_installed)
@@ -566,6 +581,9 @@ heroku-logs:
 
 # this requires Term::ANSIColor, will error if not present,
 # use `make build dev` instead
+
+build-dlv-run: build
+	@( make dlv 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
 build-dev-run: build
 	@( make dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
