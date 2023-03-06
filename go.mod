@@ -1,12 +1,12 @@
 module github.com/go-enjin/website-quoted-fyi
 
-go 1.19
+go 1.20
 
 require (
 	github.com/blevesearch/bleve/v2 v2.3.6
-	github.com/go-enjin/be v0.0.0-20230219182730-fdabda8c29d2
-	github.com/go-enjin/golang-org-x-text v0.0.0-20221026190533-d0e9c4fd3b27
-	github.com/go-enjin/semantic-enjin-theme v0.0.0-20230219182916-a0b7037bc6db
+	github.com/go-enjin/be v0.0.0-20230306185847-fc7be4685066
+	github.com/go-enjin/golang-org-x-text v0.0.0-20230219204830-4f2b7b481f16
+	github.com/go-enjin/semantic-enjin-theme v0.0.0-20230306185931-91deab90d751
 	github.com/iancoleman/strcase v0.2.0
 	github.com/maruel/natural v1.1.0
 	github.com/urfave/cli/v2 v2.23.5
@@ -47,7 +47,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.7 // indirect
 	github.com/go-chi/hostrouter v0.2.0 // indirect
 	github.com/go-curses/cdk v0.5.14 // indirect
-	github.com/go-curses/ctk v0.5.5 // indirect
+	github.com/go-curses/ctk v0.5.6 // indirect
 	github.com/go-curses/term v1.2.2-gocurses.1 // indirect
 	github.com/go-curses/terminfo v1.0.0 // indirect
 	github.com/go-enjin/github-com-djherbis-times v0.0.0-20221101184323-aeef8854ee8a // indirect
