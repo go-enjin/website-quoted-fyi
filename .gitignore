@@ -1,4 +1,5 @@
+/.idea
+/.env
 /quotes*
-be-quoted-fyi
-_data
-.idea
+/be-quoted-fyi
+/_data
