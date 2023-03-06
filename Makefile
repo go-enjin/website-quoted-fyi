@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+-include .env
+export
+
 BE_LOCAL_PATH ?= ../be
 
 APP_NAME    ?= be-quoted-fyi
