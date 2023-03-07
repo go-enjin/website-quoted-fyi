@@ -4,9 +4,9 @@ go 1.20
 
 require (
 	github.com/blevesearch/bleve/v2 v2.3.6
-	github.com/go-enjin/be v0.0.0-20230307191318-3f2005fec026
+	github.com/go-enjin/be v0.0.0-20230307194918-a8aabfa502ec
 	github.com/go-enjin/golang-org-x-text v0.0.0-20230219204830-4f2b7b481f16
-	github.com/go-enjin/semantic-enjin-theme v0.0.0-20230307191527-c5e7fac60490
+	github.com/go-enjin/semantic-enjin-theme v0.0.0-20230307195103-cdae72cbf9bd
 	github.com/iancoleman/strcase v0.2.0
 	github.com/maruel/natural v1.1.0
 	github.com/urfave/cli/v2 v2.23.5
