@@ -17,13 +17,28 @@
 #: uncomment to echo instead of execute
 #CMD=echo
 
-ENJIN_MK_VERSION = v0.1.12
+.PHONY: audit audit-% be-update build build-dev-run build-dlv-run check clean
+.PHONY: con-% dev dist-clean dlv help heroku-logs heroku-push local
+.PHONY: profile.cpu profile.mem release release-dev-run run stop tidy unlocal
+.PHONY: yarn-% _audit _enjenv _golang _nodejs
+.PHONY: _check_make_target _clean _enjenv_bin
+.PHONY: _enjenv_present _env_run_vars _golang_nancy_installed
+.PHONY: _has_feature _help_nodejs_audit _help_nodejs_yarn _is_nodejs_tag
+.PHONY: _make_extra_locals _make_extra_pkgs _make_extra_unlocals
+.PHONY: _make_go_local _make_go_unlocal
+.PHONY: _run _upx_build
+.PHONY: _validate_extra_pkgs _yarn_run _yarn_run_script
+.PHONY: _yarn_tag_install
+
+ENJIN_MK_VERSION = v0.1.15
 
 SHELL = /bin/bash
 
 DEBUG ?= false
 
-APP_NAME    ?= $(shell basename `pwd`)
+ifeq ($(origin APP_NAME),undefined)
+APP_NAME := $(shell basename `pwd`)
+endif
 APP_SUMMARY ?= Go-Enjin
 ENV_PREFIX  ?= BE
 APP_PREFIX  ?= ${USER}
@@ -53,49 +68,17 @@ RELEASE_BUILD ?= false
 
 GO_ENJIN_PKG ?= github.com/go-enjin/be
 
-BE_PATH ?= ../be
+BE_PATH       ?= ../be
+BE_LOCAL_PATH ?= ${BE_PATH}
 
-ENJENV_BIN  ?= $(shell which enjenv)
-ENJENV_EXE  ?= $(call _enjenv_bin,"${ENJENV_BIN}")
-ENJENV_URL  ?= https://github.com/go-enjin/enjenv-heroku-buildpack/raw/trunk/bin/enjenv
-ENJENV_PKG  ?= github.com/go-enjin/enjenv/cmd/enjenv@latest
-ENJENV_DIR_NAME ?= .enjenv
-ENJENV_DIR ?= ${ENJENV_DIR_NAME}
-ENJENV_PATH ?= $(call _enjenv_path)
+_INTERNAL_BUILD_LOG_ := /dev/null
 
-UNTAGGED_VERSION ?= v0.0.0
-
-VERSION ?= $(call _be_version)
-RELEASE ?= $(call _be_release)
-
-PROFILE_PATH ?= .
-
-EXTRA_LDFLAGS ?=
-EXTRA_GCFLAGS ?=
-
-define _check_make_target =
-$(shell \
-	if (make -n "$(1)" 2>&1) | head -1 | grep -q "No rule to make target"; then \
-		echo "false"; \
-	else \
-		echo "true"; \
-	fi)
-endef
-
-define _be_version =
-$(shell if [ -x "${ENJENV_EXE}" ]; then \
-	${ENJENV_EXE} git-tag --untagged ${UNTAGGED_VERSION}; \
-fi)
-endef
-
-define _be_release =
-$(shell if [ -x "${ENJENV_EXE}" ]; then \
-	${ENJENV_EXE} rel-ver; \
-fi)
-endef
-
-define _enjenv_bin =
-$(shell \
+ifeq ($(origin ENJENV_BIN),undefined)
+ENJENV_BIN:=$(shell which enjenv)
+endif
+ifeq ($(origin ENJENV_EXE),undefined)
+ENJENV_EXE:=$(shell \
+	echo "ENJENV_EXE" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ "${ENJENV_BIN}" != "" -a -x "${ENJENV_BIN}" ]; then \
 		echo "${ENJENV_BIN}"; \
 	else \
@@ -107,99 +90,162 @@ $(shell \
 			echo "ERROR"; \
 		fi; \
 	fi)
-endef
+endif
 
-define _enjenv_path =
-$(shell \
+ENJENV_PKG  ?= github.com/go-enjin/enjenv/cmd/enjenv@latest
+ENJENV_DIR_NAME ?= .enjenv
+ENJENV_DIR ?= ${ENJENV_DIR_NAME}
+
+ifeq ($(origin ENJENV_PATH),undefined)
+ENJENV_PATH := $(shell \
+	echo "_enjenv_path" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ -x "${ENJENV_EXE}" ]; then \
 		echo "${ENJENV_EXE}"; \
 	elif [ -d "./${ENJENV_DIR}" ]; then \
 		echo "${PWD}/${ENJENV_DIR}"; \
 	fi)
+endif
+
+UNTAGGED_VERSION ?= v0.0.0
+
+ifeq ($(origin VERSION),undefined)
+VERSION := $(shell \
+	echo "_be_version" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ -x "${ENJENV_EXE}" ]; then \
+		${ENJENV_EXE} git-tag --untagged ${UNTAGGED_VERSION}; \
+	fi)
+endif
+ifeq ($(origin RELEASE),undefined)
+RELEASE := $(shell \
+	echo "_be_release" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ -x "${ENJENV_EXE}" ]; then \
+		${ENJENV_EXE} rel-ver; \
+	fi)
+endif
+
+PROFILE_PATH ?= .
+
+EXTRA_LDFLAGS ?=
+EXTRA_GCFLAGS ?=
+
+define _check_make_target =
+$(shell \
+	echo "_check_make_target $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
+	if (make -n "$(1)" 2>&1) | head -1 | grep -q "No rule to make target"; then \
+		echo "false"; \
+	else \
+		echo "true"; \
+	fi)
 endef
 
 define _clean =
-for thing in $(1); do \
-	if [ -d "$${thing}" ]; then \
-		rm -rfv "$${thing}"; \
-	elif [ -f "$${thing}" ]; then \
-		rm -fv "$${thing}"; \
-	fi; \
-done
+$(shell \
+	echo "_clean $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
+	for thing in $(1); do \
+		if [ -d "$${thing}" ]; then \
+			rm -rf "$${thing}" && \
+				echo "echo 'removed: \"$${thing}\" (recursively)'"; \
+		elif [ -f "$${thing}" ]; then \
+			rm -f "$${thing}" && \
+				echo "echo 'removed: \"$${thing}\"'"; \
+		fi; \
+	done)
 endef
 
-define _build_tags =
-$(shell if [ "${RELEASE_BUILD}" == "true" ]; then \
+_BUILD_TAGS = $(shell \
+	echo "_build_tags" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "${RELEASE_BUILD}" == "true" ]; then \
 		if [ "${BUILD_TAGS}" != "" ]; then \
 			echo "-tags ${BUILD_TAGS}"; \
 		fi; \
 	elif [ "${DEV_BUILD_TAGS}" != "" ]; then \
 		echo "-tags ${DEV_BUILD_TAGS}"; \
 	fi)
-endef
 
-define _build_label =
-$(shell \
+_BUILD_LABEL = $(shell \
+	echo "_build_label" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ "${RELEASE_BUILD}" == "true" ]; then \
 		echo "# Building release"; \
 	else \
 		echo "# Building debug"; \
 	fi)
-endef
 
-define _build_args =
-$(shell \
+_BUILD_ARGS = $(shell \
+	echo "_build_args" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ "${RELEASE_BUILD}" == "true" ]; then \
 		echo " --optimize "; \
 	fi)
-endef
 
 define _upx_build =
-	if [ -x /usr/bin/upx ]; then \
-		echo -n "# packing: $(1) - "; \
-		du -hs "$(1)" | awk '{print $$1}'; \
-		/usr/bin/upx -qq -7 --no-color --no-progress "$(1)"; \
-		echo -n "# packed: $(1) - "; \
-		du -hs "$(1)" | awk '{print $$1}'; \
-		sha256sum "$(1)"; \
-	else \
-		echo "# upx command not found, skipping binary packing stage"; \
-	fi
+$(shell \
+	if [ -n "$(1)" ]; then \
+		echo "_upx_build" >> ${_INTERNAL_BUILD_LOG_}; \
+		if [ -x /usr/bin/upx ]; then \
+			echo -n "# packing: $(1) - "; \
+			du -hs "$(1)" | awk '{print $$1}'; \
+			/usr/bin/upx -qq -7 --no-color --no-progress "$(1)"; \
+			echo -n "# packed: $(1) - "; \
+			du -hs "$(1)" | awk '{print $$1}'; \
+			sha256sum "$(1)"; \
+		else \
+			echo "# upx command not found, skipping binary packing stage"; \
+		fi; \
+	fi)
 endef
 
 define _validate_extra_pkgs =
 $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(shell \
-	if [ "$($(key)_GO_PACKAGE)" == "" \
-			-o "$($(key)_LOCAL_PATH)" == "" \
-			-o ! -d "$($(key)_LOCAL_PATH)" ]; \
-	then \
-		echo "echo \"# $(key)_GO_PACKAGE and/or $(key)_LOCAL_PATH not found\"; false;"; \
-	fi \
+		if [ \
+			-z "$($(key)_GO_PACKAGE)" \
+			-o -z "$($(key)_LOCAL_PATH)" \
+			-o ! -d "$($(key)_LOCAL_PATH)" \
+		]; then \
+			echo "echo \"# $(key)_GO_PACKAGE and/or $(key)_LOCAL_PATH not found\"; false;"; \
+		fi \
 )))
 endef
 
 define _make_go_local =
+echo "_make_go_local $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
 echo "# go.mod local: $(1)"; \
 ${CMD} ${ENJENV_EXE} go-local "$(1)" "$(2)"
 endef
 
 define _make_go_unlocal =
+echo "_make_go_unlocal $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
 echo "# go.mod unlocal $(1)"; \
 ${CMD} ${ENJENV_EXE} go-unlocal "$(1)"
 endef
 
 define _make_extra_pkgs =
-$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$($(key)_GO_PACKAGE)@latest),)
+$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$($(key)_GO_PACKAGE)@latest))
 endef
 
 define _make_extra_locals =
-$(call _validate_extra_pkgs) \
+$(shell echo "_make_extra_locals" >> ${_INTERNAL_BUILD_LOG_})\
+$(call _validate_extra_pkgs)\
 $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_local,$($(key)_GO_PACKAGE),$($(key)_LOCAL_PATH));))
 endef
 
 define _make_extra_unlocals =
-$(call _validate_extra_pkgs) \
+$(shell echo "_make_extra_unlocals" >> ${_INTERNAL_BUILD_LOG_})\
+$(call _validate_extra_pkgs)\
 $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_unlocal,$($(key)_GO_PACKAGE));))
+endef
+
+_ALL_FEATURES_PRESENT=$(shell ${ENJENV_EXE} features list 2>/dev/null)
+
+define _has_feature =
+$(shell \
+	if [ -n "$(1)" -a "$(1)" != "yarn--" -a "$(1)" != "yarn---install" ]; then \
+		echo "_has_feature $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
+		for feature in ${_ALL_FEATURES_PRESENT}; do \
+			if [ "$${feature}" == "$(1)" ]; then \
+				echo "$${feature}"; \
+				break; \
+			fi; \
+		done; \
+	fi)
 endef
 
 define _env_run_vars =
@@ -213,6 +259,7 @@ define _env_run_vars =
 endef
 
 define _is_nodejs_tag =
+echo "_is_nodejs_tag $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
 if [ "$(1)" != "" -a -d "$(1)" ]; then \
 	if [ ! -f "$(1)/package.json" ]; then \
 		echo "# $(1)/package.json not found"; \
@@ -225,72 +272,96 @@ fi
 endef
 
 define _yarn_tag_install =
-if ${ENJENV_EXE} features has yarn-$(1)--install 2> /dev/null; then \
-	${CMD} ${ENJENV_EXE} yarn-$(1)--install; \
-fi
-endef
-
-define _yarn_run =
-if [ "${HAS_YARN}" == "true" ]; then \
-	cd $(1) > /dev/null; \
-	${CMD} ${ENJENV_EXE} yarn -- $(2) 2> /dev/null || true; \
-	cd - > /dev/null; \
-else \
-	echo "# yarn feature not found"; \
-	false; \
-fi
-endef
-
-define _yarn_run_script =
-if ${ENJENV_EXE} features has yarn-$(1)-$(2) 2> /dev/null; then \
-	${CMD} ${ENJENV_EXE} yarn-$(1)-$(2); \
-else \
-	echo "# yarn-$(1)-$(2) script not found"; \
-	false; \
-fi
-endef
-
-define _golang_nancy_installed =
-if ${ENJENV_EXE} features has golang--setup-nancy 2> /dev/null; then \
-	${CMD} ${ENJENV_EXE} golang setup-nancy; \
-fi
-endef
-
-define _list_package_json =
-$(shell ls */package.json 2> /dev/null || true)
-endef
-
-define _list_node_paths =
-$(shell ls */package.json 2> /dev/null | while read P; do dirname $${P}; done)
-endef
-
-define _enjenv_present =
-$(shell if [ "${ENJENV_EXE}" != "" -a -x "${ENJENV_EXE}" ]; then echo "present"; fi)
-endef
-
-define _go_present =
-$(shell if ${ENJENV_EXE} features has go 2> /dev/null; then echo "present"; fi)
-endef
-
-define _yarn_present =
-$(shell if ${ENJENV_EXE} features has yarn 2> /dev/null; then echo "present"; fi)
-endef
-
-define _deps_present =
 $(shell \
-	if [ "$(call _enjenv_present)" = "present" \
-			-a "$(call _go_present)" = "present" \
-			-a "$(call _yarn_present)" = "present" \
-	]; then \
-		echo "deps-present"; \
+	if [ -n "$(1)" ]; then \
+		echo "_yarn_tag_install $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
+		if [ "$(call _has_feature,yarn-$(1)--install)" != "" ]; then \
+			${CMD} ${ENJENV_EXE} yarn-$(1)--install; \
+		fi; \
 	fi)
 endef
 
+define _yarn_run =
+$(shell \
+	if [ -n "$(1)" -a -n "$(2)" ]; then \
+		echo "_yarn_run $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
+		if [ "${HAS_YARN}" == "true" ]; then \
+			cd $(1) > /dev/null; \
+			${CMD} ${ENJENV_EXE} yarn -- $(2) 2> /dev/null || true; \
+			cd - > /dev/null; \
+		else \
+			echo "# yarn feature not found"; \
+			false; \
+		fi; \
+	fi)
+endef
+
+define _yarn_run_script =
+$(shell \
+	if [ -n "$(1)" -a -n "$(2)" ]; then \
+		echo "_yarn_run_script $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
+		if [ "$(call _has_feature,yarn-$(1)-$(2))" != "" ]; then \
+			${CMD} ${ENJENV_EXE} yarn-$(1)-$(2); \
+		else \
+			echo "# yarn-$(1)-$(2) script not found"; \
+			false; \
+		fi; \
+	fi)
+endef
+
+define _golang_nancy_installed =
+	echo "_golang_nancy_installed" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "$(call _has_feature,golang--setup-nancy)" != "" ]; then \
+		${CMD} ${ENJENV_EXE} golang setup-nancy || false; \
+	fi
+endef
+
+_LIST_PACKAGE_JSON := $(shell \
+	echo "_list_package_json" >> ${_INTERNAL_BUILD_LOG_}; \
+	ls */package.json 2> /dev/null \
+		|| true)
+
+_LIST_NODE_PATHS := $(shell \
+	echo "_list_node_paths" >> ${_INTERNAL_BUILD_LOG_}; \
+	ls */package.json 2> /dev/null | while read P; do \
+		dirname $${P}; \
+	done)
+
+_ENJENV_PRESENT := $(shell \
+	echo "_enjenv_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "${ENJENV_EXE}" != "" -a -x "${ENJENV_EXE}" ]; then \
+		echo "present"; \
+	fi)
+
+_GO_PRESENT := $(shell \
+	echo "_go_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "$(call _has_feature,go)" != "" ]; then \
+		echo "present"; \
+	fi)
+
+_YARN_PRESENT := $(shell \
+	echo "_yarn_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "$(call _has_feature,yarn)" != "" ]; then \
+		echo "present"; \
+	fi)
+
+_DEPS_PRESENT := $(shell \
+	echo "_deps_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ \
+			"${_ENJENV_PRESENT}"  == "present" \
+			-a "${_GO_PRESENT}"   == "present" \
+			-a "${_YARN_PRESENT}" == "present" \
+	]; then \
+		echo "deps-present"; \
+	fi)
+
 define _help_nodejs_audit =
+	@$(shell echo "_help_nodejs_audit" >> ${_INTERNAL_BUILD_LOG_})
 	@echo "  audit-$(1)	runs enjenv $(1)-audit-report"
 endef
 
 define _help_nodejs_yarn =
+	@$(shell echo "_help_nodejs_yarn" >> ${_INTERNAL_BUILD_LOG_})
 	@if [ "${ENJENV_EXE}" != "" -a -x "${ENJENV_EXE}" ]; then \
 		for script in $(shell ${ENJENV_EXE} -h | grep yarn-$(1)- | awk '{print $$1}'); do \
 			echo "  $${script}"; \
@@ -298,11 +369,6 @@ define _help_nodejs_yarn =
 	fi
 endef
 
-.PHONY: all help tidy local unlocal be-update clean dist-clean build release \
-	run dev audit heroku-push heroku-logs build-dev-run release-dev-run stop \
-	profile.mem profile.cpu
-
-help: NODE_PATHS = $(call _list_node_paths)
 help:
 	@echo "${APP_NAME} - ${APP_SUMMARY}"
 	@echo
@@ -323,11 +389,11 @@ help:
 	@echo "  dev           set for DEBUG mode and run ./${APP_NAME}"
 	@echo "  run           execute ./${APP_NAME}"
 	@echo "  stop          interrupt running ${APP_NAME}"
-ifneq ($(call _deps_present),)
+ifneq (${_DEPS_PRESENT},)
 	@echo
 	@echo "Auditing Targets:"
 endif
-ifneq ($(call _go_present),)
+ifneq (${_GO_PRESENT},)
 	@echo "  audit		runs enjenv go-audit-report"
 endif
 	@echo
@@ -343,8 +409,8 @@ endif
 	@echo "  local         go mod -replace for ${GO_ENJIN_PKG}"
 	@echo "  unlocal       go mod -dropreplace for ${GO_ENJIN_PKG}"
 	@echo "  be-update     go clean and get -u ${GO_ENJIN_PKG}"
-ifneq ($(call _list_package_json),)
-	@$(foreach TAG,${NODE_PATHS},$(call _help_nodejs_audit,${TAG}))
+ifneq (${_LIST_PACKAGE_JSON},)
+	@$(foreach TAG,${_LIST_NODE_PATHS},$(call _help_nodejs_audit,${TAG}))
 	@echo
 	@echo "There are nodejs package.json files present in this project"
 	@echo "and enjenv has convenient wrappers for a number of extra"
@@ -353,7 +419,7 @@ ifneq ($(call _list_package_json),)
 	@echo "with make, will run 'yarn <script-name>' in <dir> for you."
 	@echo
 	@echo "Yarn Targets:"
-	@$(foreach TAG,${NODE_PATHS},$(call _help_nodejs_yarn,${TAG}))
+	@$(foreach TAG,${_LIST_NODE_PATHS},$(call _help_nodejs_yarn,${TAG}))
 endif
 	@echo
 	@echo "#############################################################"
@@ -395,7 +461,7 @@ _enjenv:
 	fi
 
 _golang: _enjenv
-	@if ${ENJENV_EXE} features has --not golang--build 2> /dev/null; then \
+	@if [ "$(call _has_feature,golang--build)" == "" ]; then \
 		if [ "${GOLANG}" != "" ]; then \
 			${CMD} ${ENJENV_EXE} golang init --golang "${GOLANG}"; \
 		else \
@@ -406,7 +472,7 @@ _golang: _enjenv
 	fi
 
 _nodejs: _enjenv
-	@if ${ENJENV_EXE} features has --not yarn 2> /dev/null; then \
+	@if [ "$(call _has_feature,yarn)" == "" ]; then \
 		if [ "${NODEJS}" != "" ]; then \
 			${CMD} ${ENJENV_EXE} nodejs init --nodejs "${NODEJS}"; \
 		else \
@@ -428,7 +494,7 @@ tidy: _golang
 
 local: _golang
 	@$(call _make_extra_locals)
-	@$(call _make_go_local,${GO_ENJIN_PKG},${BE_PATH})
+	@$(call _make_go_local,${GO_ENJIN_PKG},${BE_LOCAL_PATH})
 
 unlocal: _golang
 	@$(call _make_extra_unlocals)
@@ -440,7 +506,7 @@ be-update: _golang
 	@echo "# go get ${PKG_LIST}"
 	@source "${ENJENV_PATH}/activate" \
 		&& ${CMD} GOPROXY=direct go get \
-			$(call _build_tags) \
+			${_BUILD_TAGS} \
 			${PKG_LIST}
 
 clean:
@@ -476,8 +542,8 @@ endif
 ifdef override_build
 	@$(call override_build)
 else
-	@echo "$(call _build_label): ${VERSION}, ${RELEASE}"
-	@${CMD} ${ENJENV_EXE} golang build $(call _build_args) -- -v $(call _build_tags)
+	@echo "${_BUILD_LABEL}: ${VERSION}, ${RELEASE}"
+	@${CMD} ${ENJENV_EXE} golang build ${_BUILD_ARGS} -- -v ${_BUILD_TAGS}
 	@if [ -x "./${APP_NAME}" ]; then \
 		echo "# produced: ${APP_NAME}"; \
 		sha256sum ./${APP_NAME}; \
@@ -487,7 +553,7 @@ ifdef post_build
 	@$(call post_build)
 endif
 
-release: RELEASE_BUILD="true"
+release: export RELEASE_BUILD=true
 release: build
 	@$(call _upx_build,"${APP_NAME}")
 
@@ -544,11 +610,11 @@ _audit: _golang
 	@$(call _golang_nancy_installed)
 	@${CMD} ${ENJENV_EXE} go-audit-report --tags=all
 
-ifneq ($(call _go_present),)
+ifneq (${_GO_PRESENT},)
 audit: _audit
 endif
 
-ifneq ($(call _list_package_json),)
+ifneq (${_LIST_PACKAGE_JSON},)
 audit-%: TAG = $(patsubst audit-%,%,$@)
 audit-%: _enjenv
 	@$(call _is_nodejs_tag,${TAG})
