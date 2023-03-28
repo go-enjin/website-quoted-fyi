@@ -23,14 +23,14 @@
 .PHONY: yarn-% _audit _enjenv _golang _nodejs
 .PHONY: _check_make_target _clean _enjenv_bin
 .PHONY: _enjenv_present _env_run_vars _golang_nancy_installed
-.PHONY: _has_feature _help_nodejs_audit _help_nodejs_yarn _is_nodejs_tag
-.PHONY: _make_extra_locals _make_extra_pkgs _make_extra_unlocals
+.PHONY: _has_feature _is_nodejs_tag
 .PHONY: _make_go_local _make_go_unlocal
 .PHONY: _run _upx_build
 .PHONY: _validate_extra_pkgs _yarn_run _yarn_run_script
 .PHONY: _yarn_tag_install
+.PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.1.15
+ENJIN_MK_VERSION = v0.2.0
 
 SHELL = /bin/bash
 
@@ -72,6 +72,7 @@ BE_PATH       ?= ../be
 BE_LOCAL_PATH ?= ${BE_PATH}
 
 _INTERNAL_BUILD_LOG_ := /dev/null
+#_INTERNAL_BUILD_LOG_ := ./build.log
 
 ifeq ($(origin ENJENV_BIN),undefined)
 ENJENV_BIN:=$(shell which enjenv)
@@ -82,9 +83,9 @@ ENJENV_EXE:=$(shell \
 	if [ "${ENJENV_BIN}" != "" -a -x "${ENJENV_BIN}" ]; then \
 		echo "${ENJENV_BIN}"; \
 	else \
-		if [ "$(1)" != "" -a -x "$(1)" ]; then \
-			echo "$(1)"; \
-		elif [ -d .bin -a -x .bin/enjenv ]; then \
+		if [ -x "${PWD}/.enjenv.bin" ]; then \
+			echo "${PWD}/.enjenv.bin"; \
+		elif [ -d "${PWD}/.bin" -a -x "${PWD}/.bin/enjenv" ]; then \
 			echo "${PWD}/.bin/enjenv"; \
 		else \
 			echo "ERROR"; \
@@ -100,8 +101,8 @@ ifeq ($(origin ENJENV_PATH),undefined)
 ENJENV_PATH := $(shell \
 	echo "_enjenv_path" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ -x "${ENJENV_EXE}" ]; then \
-		echo "${ENJENV_EXE}"; \
-	elif [ -d "./${ENJENV_DIR}" ]; then \
+		${ENJENV_EXE}; \
+	elif [ -d "${PWD}/${ENJENV_DIR}" ]; then \
 		echo "${PWD}/${ENJENV_DIR}"; \
 	fi)
 endif
@@ -128,56 +129,87 @@ PROFILE_PATH ?= .
 EXTRA_LDFLAGS ?=
 EXTRA_GCFLAGS ?=
 
-define _check_make_target =
-$(shell \
+_MAKE_TARGETS := $($(MAKE) list-make-targets 2>/dev/null)
+
+_ALL_FEATURES_PRESENT := $(shell ${ENJENV_EXE} features list 2>/dev/null)
+
+_LIST_PACKAGE_JSON := `\
+	echo "_list_package_json" >> ${_INTERNAL_BUILD_LOG_}; \
+	ls */package.json 2> /dev/null`
+
+_LIST_NODE_PATHS := `\
+	echo "_list_node_paths" >> ${_INTERNAL_BUILD_LOG_}; \
+	ls */package.json 2> /dev/null | while read P; do \
+		dirname $${P}; \
+	done`
+
+_ENJENV_PRESENT := `\
+	echo "_enjenv_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
+		echo "present"; \
+	fi`
+
+_GO_PRESENT := `\
+	echo "_go_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ -n "$(call _has_feature,go)" ]; then \
+		echo "present"; \
+	fi`
+
+_YARN_PRESENT := `\
+	echo "_yarn_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ -n "$(call _has_feature,yarn)" ]; then \
+		echo "present"; \
+	fi`
+
+_DEPS_PRESENT := `\
+	echo "_deps_present" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ \
+			"${_ENJENV_PRESENT}"  == "present" \
+			-a "${_GO_PRESENT}"   == "present" \
+			-a "${_YARN_PRESENT}" == "present" \
+	]; then \
+		echo "deps-present"; \
+	fi`
+
+_BUILD_ARGS = `\
+	echo "_build_args" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "${RELEASE_BUILD}" == "true" ]; then \
+		echo " --optimize "; \
+	fi`
+
+_BUILD_TAGS = `\
+echo "_build_tags" >> ${_INTERNAL_BUILD_LOG_}; \
+if [ "${RELEASE_BUILD}" == "true" ]; then \
+	if [ "${BUILD_TAGS}" != "" ]; then \
+		echo "-tags ${BUILD_TAGS}"; \
+	fi; \
+elif [ "${DEV_BUILD_TAGS}" != "" ]; then \
+	echo "-tags ${DEV_BUILD_TAGS}"; \
+fi`
+
+define _check_make_target
 	echo "_check_make_target $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
-	if (make -n "$(1)" 2>&1) | head -1 | grep -q "No rule to make target"; then \
+	if echo "${_MAKE_TARGETS}" | egrep -q "^$(1)\$"; then \
 		echo "false"; \
 	else \
 		echo "true"; \
-	fi)
+	fi
 endef
 
-define _clean =
-$(shell \
+define _clean
 	echo "_clean $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
 	for thing in $(1); do \
 		if [ -d "$${thing}" ]; then \
 			rm -rf "$${thing}" && \
-				echo "echo 'removed: \"$${thing}\" (recursively)'"; \
+				echo "removed: '$${thing}' (recursively)"; \
 		elif [ -f "$${thing}" ]; then \
 			rm -f "$${thing}" && \
-				echo "echo 'removed: \"$${thing}\"'"; \
+				echo "removed: '$${thing}'"; \
 		fi; \
-	done)
+	done
 endef
 
-_BUILD_TAGS = $(shell \
-	echo "_build_tags" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ "${RELEASE_BUILD}" == "true" ]; then \
-		if [ "${BUILD_TAGS}" != "" ]; then \
-			echo "-tags ${BUILD_TAGS}"; \
-		fi; \
-	elif [ "${DEV_BUILD_TAGS}" != "" ]; then \
-		echo "-tags ${DEV_BUILD_TAGS}"; \
-	fi)
-
-_BUILD_LABEL = $(shell \
-	echo "_build_label" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ "${RELEASE_BUILD}" == "true" ]; then \
-		echo "# Building release"; \
-	else \
-		echo "# Building debug"; \
-	fi)
-
-_BUILD_ARGS = $(shell \
-	echo "_build_args" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ "${RELEASE_BUILD}" == "true" ]; then \
-		echo " --optimize "; \
-	fi)
-
-define _upx_build =
-$(shell \
+define _upx_build
 	if [ -n "$(1)" ]; then \
 		echo "_upx_build" >> ${_INTERNAL_BUILD_LOG_}; \
 		if [ -x /usr/bin/upx ]; then \
@@ -190,10 +222,10 @@ $(shell \
 		else \
 			echo "# upx command not found, skipping binary packing stage"; \
 		fi; \
-	fi)
+	fi
 endef
 
-define _validate_extra_pkgs =
+define _validate_extra_pkgs
 $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(shell \
 		if [ \
 			-z "$($(key)_GO_PACKAGE)" \
@@ -205,42 +237,29 @@ $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(shell \
 )))
 endef
 
-define _make_go_local =
+define _make_go_local
 echo "_make_go_local $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
 echo "# go.mod local: $(1)"; \
 ${CMD} ${ENJENV_EXE} go-local "$(1)" "$(2)"
 endef
 
-define _make_go_unlocal =
+define _make_go_unlocal
 echo "_make_go_unlocal $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
 echo "# go.mod unlocal $(1)"; \
 ${CMD} ${ENJENV_EXE} go-unlocal "$(1)"
 endef
 
-define _make_extra_pkgs =
+define _make_extra_pkgs
 $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$($(key)_GO_PACKAGE)@latest))
 endef
 
-define _make_extra_locals =
-$(shell echo "_make_extra_locals" >> ${_INTERNAL_BUILD_LOG_})\
-$(call _validate_extra_pkgs)\
-$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_local,$($(key)_GO_PACKAGE),$($(key)_LOCAL_PATH));))
-endef
-
-define _make_extra_unlocals =
-$(shell echo "_make_extra_unlocals" >> ${_INTERNAL_BUILD_LOG_})\
-$(call _validate_extra_pkgs)\
-$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_unlocal,$($(key)_GO_PACKAGE));))
-endef
-
-_ALL_FEATURES_PRESENT=$(shell ${ENJENV_EXE} features list 2>/dev/null)
-
-define _has_feature =
+define _has_feature
 $(shell \
 	if [ -n "$(1)" -a "$(1)" != "yarn--" -a "$(1)" != "yarn---install" ]; then \
-		echo "_has_feature $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
 		for feature in ${_ALL_FEATURES_PRESENT}; do \
+			echo "_has_feature $(1) (checking: $${feature})" >> ${_INTERNAL_BUILD_LOG_}; \
 			if [ "$${feature}" == "$(1)" ]; then \
+				echo "_has_feature $(1) (found)" >> ${_INTERNAL_BUILD_LOG_}; \
 				echo "$${feature}"; \
 				break; \
 			fi; \
@@ -248,7 +267,7 @@ $(shell \
 	fi)
 endef
 
-define _env_run_vars =
+define _env_run_vars
 	${ENV_PREFIX}_DEBUG="${DEBUG}" \
 	${ENV_PREFIX}_LISTEN="${LISTEN}" \
 	${ENV_PREFIX}_PORT="${PORT}" \
@@ -258,7 +277,7 @@ define _env_run_vars =
 	${ENV_PREFIX}_DENY_DURATION="${DENY_DURATION}"
 endef
 
-define _is_nodejs_tag =
+define _is_nodejs_tag
 echo "_is_nodejs_tag $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
 if [ "$(1)" != "" -a -d "$(1)" ]; then \
 	if [ ! -f "$(1)/package.json" ]; then \
@@ -271,18 +290,16 @@ else \
 fi
 endef
 
-define _yarn_tag_install =
-$(shell \
+define _yarn_tag_install
 	if [ -n "$(1)" ]; then \
 		echo "_yarn_tag_install $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
-		if [ "$(call _has_feature,yarn-$(1)--install)" != "" ]; then \
+		if [ -n "$(call _has_feature,yarn-$(1)--install)" ]; then \
 			${CMD} ${ENJENV_EXE} yarn-$(1)--install; \
 		fi; \
-	fi)
+	fi
 endef
 
-define _yarn_run =
-$(shell \
+define _yarn_run
 	if [ -n "$(1)" -a -n "$(2)" ]; then \
 		echo "_yarn_run $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
 		if [ "${HAS_YARN}" == "true" ]; then \
@@ -293,81 +310,84 @@ $(shell \
 			echo "# yarn feature not found"; \
 			false; \
 		fi; \
-	fi)
+	fi
 endef
 
-define _yarn_run_script =
-$(shell \
+define _yarn_run_script
 	if [ -n "$(1)" -a -n "$(2)" ]; then \
 		echo "_yarn_run_script $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
-		if [ "$(call _has_feature,yarn-$(1)-$(2))" != "" ]; then \
+		if [ -n "$(call _has_feature,yarn-$(1)-$(2))" ]; then \
 			${CMD} ${ENJENV_EXE} yarn-$(1)-$(2); \
 		else \
 			echo "# yarn-$(1)-$(2) script not found"; \
 			false; \
 		fi; \
-	fi)
+	fi
 endef
 
-define _golang_nancy_installed =
+define _golang_nancy_installed
 	echo "_golang_nancy_installed" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ "$(call _has_feature,golang--setup-nancy)" != "" ]; then \
+	if [ -n "$(call _has_feature,golang--setup-nancy)" ]; then \
 		${CMD} ${ENJENV_EXE} golang setup-nancy || false; \
 	fi
 endef
 
-_LIST_PACKAGE_JSON := $(shell \
-	echo "_list_package_json" >> ${_INTERNAL_BUILD_LOG_}; \
-	ls */package.json 2> /dev/null \
-		|| true)
-
-_LIST_NODE_PATHS := $(shell \
-	echo "_list_node_paths" >> ${_INTERNAL_BUILD_LOG_}; \
-	ls */package.json 2> /dev/null | while read P; do \
-		dirname $${P}; \
-	done)
-
-_ENJENV_PRESENT := $(shell \
-	echo "_enjenv_present" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ "${ENJENV_EXE}" != "" -a -x "${ENJENV_EXE}" ]; then \
-		echo "present"; \
-	fi)
-
-_GO_PRESENT := $(shell \
-	echo "_go_present" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ "$(call _has_feature,go)" != "" ]; then \
-		echo "present"; \
-	fi)
-
-_YARN_PRESENT := $(shell \
-	echo "_yarn_present" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ "$(call _has_feature,yarn)" != "" ]; then \
-		echo "present"; \
-	fi)
-
-_DEPS_PRESENT := $(shell \
-	echo "_deps_present" >> ${_INTERNAL_BUILD_LOG_}; \
-	if [ \
-			"${_ENJENV_PRESENT}"  == "present" \
-			-a "${_GO_PRESENT}"   == "present" \
-			-a "${_YARN_PRESENT}" == "present" \
-	]; then \
-		echo "deps-present"; \
-	fi)
-
-define _help_nodejs_audit =
-	@$(shell echo "_help_nodejs_audit" >> ${_INTERNAL_BUILD_LOG_})
-	@echo "  audit-$(1)	runs enjenv $(1)-audit-report"
-endef
-
-define _help_nodejs_yarn =
-	@$(shell echo "_help_nodejs_yarn" >> ${_INTERNAL_BUILD_LOG_})
-	@if [ "${ENJENV_EXE}" != "" -a -x "${ENJENV_EXE}" ]; then \
-		for script in $(shell ${ENJENV_EXE} -h | grep yarn-$(1)- | awk '{print $$1}'); do \
-			echo "  $${script}"; \
-		done; \
+define _source_activate_run
+	if [ -f "${ENJENV_PATH}/activate" ]; then \
+		source "${ENJENV_PATH}/activate" 2>/dev/null \
+		&& ${CMD} ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8} ${9}; \
+	else \
+		echo "# missing ${ENJENV_PATH}/activate"; \
 	fi
 endef
+
+define _run
+	@if [ ! -x "${APP_NAME}" ]; then \
+		echo "${APP_NAME} not found or not executable"; \
+		false; \
+	fi
+	@echo "# running ${APP_NAME} -- ${RUN_ARGV}"
+	@if [ "${DEBUG}" == "true" ]; then \
+		if [ "${DLV_DEBUG}" == "true" ]; then \
+			$(call _env_run_vars) \
+			dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient \
+				exec -- ./${APP_NAME} ${RUN_ARGV}; \
+		else \
+			${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
+		fi; \
+	else \
+		${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
+	fi
+endef
+
+list-make-targets:
+	@LC_ALL=C \
+		$(MAKE) -pRrq -f $(firstword $(MAKEFILE_LIST)) : 2>/dev/null \
+		| awk -v RS= -F: '/(^|\n)# Files(\n|$$)/,/(^|\n)# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' \
+		| sort \
+		| egrep -v -e '^[^[:alnum:]]' -e '^$@$$' \
+		| egrep -v '\-\%$$'
+	@$(shell \
+if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
+		_ENJENV_HELP=$$(${ENJENV_EXE} features list); \
+		_FOUND=""; \
+		if echo "$${_ENJENV_HELP}" | egrep -q '^go-audit$$'; then \
+			for tag in ${_LIST_NODE_PATHS}; do \
+				echo "echo \"audit-$${tag}\";"; \
+			done; \
+		fi; \
+		for tag in ${_LIST_NODE_PATHS}; do \
+			for script in `echo "$${_ENJENV_HELP}" | grep yarn-$${tag}- | awk '{print $$1}'`; do \
+				echo "echo \"$${script}\";"; \
+				_FOUND="$${_FOUND};$${script}"; \
+			done; \
+		done; \
+		if [ -z "$${_FOUND}" ]; then \
+			for tag in ${_LIST_NODE_PATHS}; do \
+				echo "echo \"yarn-$${tag}-install\";"; \
+			done; \
+		fi; \
+fi)
 
 help:
 	@echo "${APP_NAME} - ${APP_SUMMARY}"
@@ -410,7 +430,10 @@ endif
 	@echo "  unlocal       go mod -dropreplace for ${GO_ENJIN_PKG}"
 	@echo "  be-update     go clean and get -u ${GO_ENJIN_PKG}"
 ifneq (${_LIST_PACKAGE_JSON},)
-	@$(foreach TAG,${_LIST_NODE_PATHS},$(call _help_nodejs_audit,${TAG}))
+	@$(shell \
+		for tag in ${_LIST_NODE_PATHS}; do \
+			echo "echo \"  audit-$${tag}	runs enjenv $${tag}-audit-report\""; \
+		done)
 	@echo
 	@echo "There are nodejs package.json files present in this project"
 	@echo "and enjenv has convenient wrappers for a number of extra"
@@ -419,7 +442,22 @@ ifneq (${_LIST_PACKAGE_JSON},)
 	@echo "with make, will run 'yarn <script-name>' in <dir> for you."
 	@echo
 	@echo "Yarn Targets:"
-	@$(foreach TAG,${_LIST_NODE_PATHS},$(call _help_nodejs_yarn,${TAG}))
+	@$(shell \
+if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
+		_ENJENV_HELP=$$(${ENJENV_EXE} features list); \
+		_FOUND=""; \
+		for tag in ${_LIST_NODE_PATHS}; do \
+			for script in `echo "$${_ENJENV_HELP}" | grep yarn-$${tag}- | awk '{print $$1}'`; do \
+				echo "echo \"  $${script}\";"; \
+				_FOUND="$${_FOUND};$${script}"; \
+			done; \
+		done; \
+		if [ -z "$${_FOUND}" ]; then \
+			for tag in ${_LIST_NODE_PATHS}; do \
+				echo "echo \"  yarn-$${tag}-install\";"; \
+			done; \
+		fi; \
+fi)
 endif
 	@echo
 	@echo "#############################################################"
@@ -445,69 +483,81 @@ endif
 	@echo "  yarn          preferred nodejs package manager"
 	@echo
 	@echo "Assumed Dependencies:"
-	@echo "  os            some flavour of linux"
-	@echo "  arch          only amd64 supported (for now)"
+	@echo "  os            linux or darwin"
+	@echo "  arch          arm64 and amd64 are supported"
 	@echo "  make          GNU make is installed"
 	@echo "  coreutils     GNU coreutils is installed"
 	@echo
 	@echo "Enjin.mk Version: ${ENJIN_MK_VERSION}"
 
 _enjenv:
-	@if [ "x${ENJENV_EXE}" != "x" -a -x "${ENJENV_EXE}" ]; then \
-		echo "# using ${ENJENV_EXE}"; \
-	else \
+	@if [ -z "${ENJENV_EXE}" -o ! -x "${ENJENV_EXE}" ]; then \
 		echo "# critical error: enjenv not found"; \
 		false; \
 	fi
 
 _golang: _enjenv
-	@if [ "$(call _has_feature,golang--build)" == "" ]; then \
+	@if [ -z "$(call _has_feature,golang--build)" ]; then \
 		if [ "${GOLANG}" != "" ]; then \
 			${CMD} ${ENJENV_EXE} golang init --golang "${GOLANG}"; \
 		else \
 			${CMD} ${ENJENV_EXE} golang init; \
 		fi; \
-		${CMD} ${ENJENV_EXE} golang setup-nancy; \
 		${CMD} ${ENJENV_EXE} write-scripts; \
+		$(call _source_activate_run,${ENJENV_EXE},golang,setup-nancy); \
+	elif [ ! -f "${ENJENV_PATH}/activate" ]; then \
+		${CMD} ${ENJENV_EXE} write-scripts; \
+	else \
+		echo "# golang present"; \
 	fi
 
 _nodejs: _enjenv
-	@if [ "$(call _has_feature,yarn)" == "" ]; then \
+	@if [ -z "$(call _has_feature,yarn)" ]; then \
 		if [ "${NODEJS}" != "" ]; then \
 			${CMD} ${ENJENV_EXE} nodejs init --nodejs "${NODEJS}"; \
 		else \
 			${CMD} ${ENJENV_EXE} nodejs init; \
 		fi; \
 		${CMD} ${ENJENV_EXE} write-scripts; \
+	else \
+		echo "# nodejs present"; \
 	fi
+
+setup-golang: _golang
+	@echo "# setup-golang complete"
+
+setup-yarn: _nodejs
+	@echo "# setup-yarn complete"
+
+setup: setup-golang setup-yarn
 
 tidy: _golang
 	@if [ ${GO_MOD} -le 1017 ]; then \
 		echo "# go mod tidy -go=1.16 && go mod tidy -go=1.17"; \
-		source "${ENJENV_PATH}/activate" \
-			&& ${CMD} go mod tidy -go=1.16 \
-			&& ${CMD} go mod tidy -go=1.17; \
+		$(call _source_activate_run,go,mod,tidy,-go=1.16); \
+		$(call _source_activate_run,go,mod,tidy,-go=1.17); \
 	else \
 		echo "# go mod tidy"; \
-		source "${ENJENV_PATH}/activate" && go mod tidy; \
+		$(call _source_activate_run,go,mod,tidy); \
 	fi
 
 local: _golang
-	@$(call _make_extra_locals)
+	@`echo "_make_extra_locals" >> ${_INTERNAL_BUILD_LOG_}`
+	@$(call _validate_extra_pkgs)
+	@$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_local,$($(key)_GO_PACKAGE),$($(key)_LOCAL_PATH));))
 	@$(call _make_go_local,${GO_ENJIN_PKG},${BE_LOCAL_PATH})
 
 unlocal: _golang
-	@$(call _make_extra_unlocals)
+	@`echo "_make_extra_unlocals" >> ${_INTERNAL_BUILD_LOG_}`
+	@$(call _validate_extra_pkgs)
+	@$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_unlocal,$($(key)_GO_PACKAGE));))
 	@$(call _make_go_unlocal,${GO_ENJIN_PKG})
 
 be-update: PKG_LIST = ${GO_ENJIN_PKG}@latest $(call _make_extra_pkgs)
 be-update: _golang
 	@$(call _validate_extra_pkgs)
 	@echo "# go get ${PKG_LIST}"
-	@source "${ENJENV_PATH}/activate" \
-		&& ${CMD} GOPROXY=direct go get \
-			${_BUILD_TAGS} \
-			${PKG_LIST}
+	@$(call _source_activate_run,go,get,${_BUILD_TAGS},${PKG_LIST})
 
 clean:
 ifdef override_clean
@@ -542,7 +592,11 @@ endif
 ifdef override_build
 	@$(call override_build)
 else
-	@echo "${_BUILD_LABEL}: ${VERSION}, ${RELEASE}"
+	@if [ "${RELEASE_BUILD}" == "true" ]; then \
+		echo "# Building release: ${VERSION}, ${RELEASE}"; \
+	else \
+		echo "# Building debug: ${VERSION}, ${RELEASE}"; \
+	fi
 	@${CMD} ${ENJENV_EXE} golang build ${_BUILD_ARGS} -- -v ${_BUILD_TAGS}
 	@if [ -x "./${APP_NAME}" ]; then \
 		echo "# produced: ${APP_NAME}"; \
@@ -558,25 +612,6 @@ release: build
 	@$(call _upx_build,"${APP_NAME}")
 
 RUN_ARGV ?=
-
-define _run =
-	@if [ ! -x "${APP_NAME}" ]; then \
-		echo "${APP_NAME} not found or not executable"; \
-		false; \
-	fi
-	@echo "# running ${APP_NAME} -- ${RUN_ARGV}"
-	@if [ "${DEBUG}" == "true" ]; then \
-		if [ "${DLV_DEBUG}" == "true" ]; then \
-			$(call _env_run_vars) \
-			dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient \
-				exec -- ./${APP_NAME} ${RUN_ARGV}; \
-		else \
-			${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
-		fi; \
-	else \
-		${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
-	fi
-endef
 
 run:
 ifdef pre_run
@@ -616,7 +651,7 @@ endif
 
 ifneq (${_LIST_PACKAGE_JSON},)
 audit-%: TAG = $(patsubst audit-%,%,$@)
-audit-%: _enjenv
+audit-%: _enjenv _nodejs
 	@$(call _is_nodejs_tag,${TAG})
 	@$(call _yarn_tag_install,${TAG})
 	@${CMD} ${ENJENV_EXE} ${TAG}-audit-report
@@ -625,14 +660,18 @@ yarn-%: FIRST = $(patsubst yarn-%,%,$@)
 yarn-%: SECOND = $(subst -, ,${FIRST})
 yarn-%: TAG = $(word 1,${SECOND})
 yarn-%: OP = $(patsubst ${TAG}-%,%,${FIRST})
-yarn-%:
+yarn-%: _enjenv _nodejs
 	@if [ "${TAG}" = "" -o "${OP}" = "" -o "${TAG}" = "${OP}" ]; then \
 		echo "# invalid yarn target: $@"; \
 		false; \
 	fi
 	@$(call _is_nodejs_tag,${TAG})
 	@$(call _yarn_tag_install,${TAG})
-	@$(call _yarn_run_script,${TAG},${OP})
+	@if [ "${OP}" == "install" ]; then \
+		echo "# yarn-${TAG}-install completed"; \
+	else \
+		$(call _yarn_run_script,${TAG},${OP}); \
+	fi
 endif
 
 HEROKU_GIT_REMOTE ?= heroku
@@ -649,13 +688,13 @@ heroku-logs:
 # use `make build dev` instead
 
 build-dlv-run: build
-	@( make dlv 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+	@( $(MAKE) dlv 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
 build-dev-run: build
-	@( make dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
 release-dev-run: release
-	@( make dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
 stop: export RUN_BIN=${APP_NAME}
 stop: export RUN_PID=$(shell ps -C ${APP_NAME} | awk '{print $$1}' | grep -v PID)
