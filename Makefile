@@ -15,27 +15,26 @@
 # limitations under the License.
 
 -include .env
-export
+#export
 
 BE_LOCAL_PATH ?= ../be
 
-APP_NAME    ?= be-quoted-fyi
-APP_SUMMARY ?= quoted.fyi
+APP_NAME    := be-quoted-fyi
+APP_SUMMARY := quoted.fyi
 
-DENY_DURATION ?= 60
+DENY_DURATION := 600
 
-#COMMON_TAGS = embeds,zips,htmlify,buntdb,stock_pgc,stock_kws,stock_pql,page_query,page_search,page_robots,header_proxy,papertrail,basic_auth
-COMMON_TAGS = embeds,zips,htmlify,buntdb,stock_pgc,stock_kws,stock_pql,page_query,page_search,page_robots,header_proxy,papertrail,basic_auth
-BUILD_TAGS = prd,$(COMMON_TAGS)
-DEV_BUILD_TAGS = dev,locals,$(COMMON_TAGS)
-EXTRA_PKGS =
+COMMON_TAGS := embeds,zips,htmlify,buntdb,stock_pgc,stock_kws,stock_pql,page_query,page_search,page_robots,header_proxy,papertrail,basic_auth
+BUILD_TAGS := prd,$(COMMON_TAGS)
+DEV_BUILD_TAGS := dev,locals,$(COMMON_TAGS)
+EXTRA_PKGS :=
 
 ## Custom go.mod locals
-GOPKG_KEYS = SET
+GOPKG_KEYS := SET
 
 ## Semantic Enjin Theme
-SET_GO_PACKAGE = github.com/go-enjin/semantic-enjin-theme
-SET_LOCAL_PATH = ../semantic-enjin-theme
+SET_GO_PACKAGE := github.com/go-enjin/semantic-enjin-theme
+SET_LOCAL_PATH := ../semantic-enjin-theme
 
 include ./Enjin.mk
 
