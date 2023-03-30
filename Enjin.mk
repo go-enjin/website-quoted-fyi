@@ -30,7 +30,7 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.2.1
+ENJIN_MK_VERSION = v0.2.2
 
 SHELL = /bin/bash
 
@@ -257,11 +257,12 @@ define _has_feature
 $(shell \
 	if [ -n "$(1)" -a "$(1)" != "yarn--" -a "$(1)" != "yarn---install" ]; then \
 		for feature in ${_ALL_FEATURES_PRESENT}; do \
-			echo "_has_feature $(1) (checking: $${feature})" >> ${_INTERNAL_BUILD_LOG_}; \
 			if [ "$${feature}" == "$(1)" ]; then \
 				echo "_has_feature $(1) (found)" >> ${_INTERNAL_BUILD_LOG_}; \
 				echo "$${feature}"; \
 				break; \
+			else \
+				echo "_has_feature $(1) (is not $${feature})" >> ${_INTERNAL_BUILD_LOG_}; \
 			fi; \
 		done; \
 	fi)
@@ -278,22 +279,22 @@ define _env_run_vars
 endef
 
 define _is_nodejs_tag
-echo "_is_nodejs_tag $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
-if [ "$(1)" != "" -a -d "$(1)" ]; then \
-	if [ ! -f "$(1)/package.json" ]; then \
-		echo "# $(1)/package.json not found"; \
+	echo "_is_nodejs_tag $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "$(1)" != "" -a -d "$(1)" ]; then \
+		if [ ! -f "$(1)/package.json" ]; then \
+			echo "# $(1)/package.json not found"; \
+			false; \
+		fi; \
+	else \
+		echo "# \"$(1)/package.json\" not found"; \
 		false; \
-	fi; \
-else \
-	echo "# directory \"$(1)\" not found"; \
-	false; \
-fi
+	fi
 endef
 
 define _yarn_tag_install
 	if [ -n "$(1)" ]; then \
 		echo "_yarn_tag_install $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
-		if [ -n "$(call _has_feature,yarn-$(1)--install)" ]; then \
+		if ${ENJENV_EXE} features has yarn-$(1)--install; then \
 			${CMD} ${ENJENV_EXE} yarn-$(1)--install; \
 		fi; \
 	fi
@@ -316,7 +317,7 @@ endef
 define _yarn_run_script
 	if [ -n "$(1)" -a -n "$(2)" ]; then \
 		echo "_yarn_run_script $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
-		if [ -n "$(call _has_feature,yarn-$(1)-$(2))" ]; then \
+		if ${ENJENV_EXE} features has yarn-$(1)-$(2); then \
 			${CMD} ${ENJENV_EXE} yarn-$(1)-$(2); \
 		else \
 			echo "# yarn-$(1)-$(2) script not found"; \
@@ -661,14 +662,14 @@ yarn-%: SECOND = $(subst -, ,${FIRST})
 yarn-%: TAG = $(word 1,${SECOND})
 yarn-%: OP = $(patsubst ${TAG}-%,%,${FIRST})
 yarn-%: _enjenv _nodejs
-	@if [ "${TAG}" = "" -o "${OP}" = "" -o "${TAG}" = "${OP}" ]; then \
+	@if [ -z "${TAG}" -o -z "${OP}" -o "${TAG}" == "${OP}" ]; then \
 		echo "# invalid yarn target: $@"; \
 		false; \
 	fi
 	@$(call _is_nodejs_tag,${TAG})
 	@$(call _yarn_tag_install,${TAG})
-	@if [ "${OP}" == "install" ]; then \
-		echo "# yarn-${TAG}-install completed"; \
+	@if [ "${OP}" == "install" -o "${OP}" == "-install" ]; then \
+		echo "# yarn-${TAG}--install completed"; \
 	else \
 		$(call _yarn_run_script,${TAG},${OP}); \
 	fi
