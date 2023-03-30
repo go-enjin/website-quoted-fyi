@@ -30,7 +30,7 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.2.0
+ENJIN_MK_VERSION = v0.2.1
 
 SHELL = /bin/bash
 
@@ -201,10 +201,10 @@ define _clean
 	for thing in $(1); do \
 		if [ -d "$${thing}" ]; then \
 			rm -rf "$${thing}" && \
-				echo "removed: '$${thing}' (recursively)"; \
+				echo "removed: \"$${thing}\" (recursively)"; \
 		elif [ -f "$${thing}" ]; then \
 			rm -f "$${thing}" && \
-				echo "removed: '$${thing}'"; \
+				echo "removed: \"$${thing}\""; \
 		fi; \
 	done
 endef
@@ -696,15 +696,34 @@ build-dev-run: build
 release-dev-run: release
 	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
-stop: export RUN_BIN=${APP_NAME}
-stop: export RUN_PID=$(shell ps -C ${APP_NAME} | awk '{print $$1}' | grep -v PID)
 stop:
-	@if [ "${RUN_PID}" != "" ]; then \
-		echo "# stopping ${APP_NAME}: ${RUN_PID}"; \
-		${CMD} kill -INT "${RUN_PID}"; \
-	else \
-		echo "# ${APP_NAME} already stopped"; \
-	fi
+	@RUNNING_PIDS=$$(\
+		COLUMNS=1024 ps -x -a -o pid=,command= \
+			| egrep -v '(grep|tail)' \
+			| egrep "^\\s*[0-9]*\\s*\./${APP_NAME}\$$" \
+			| awk '{print $$1}' \
+		); \
+		if [ -z "$${RUNNING_PIDS}" ]; then \
+			echo "# ${APP_NAME} process not found, nothing to stop"; \
+		else \
+			echo "# found `echo "$${RUNNING_PIDS}" | wc -l` ${APP_NAME} processes"; \
+			for RP in $${RUNNING_PIDS}; do \
+				LINE=$$(\
+					COLUMNS=1024 ps -x -a -o pid=,command= \
+						| egrep -v '(grep|tail)' \
+						| egrep "^\\s*$${RP}\\s*\./${APP_NAME}\$$" \
+				); \
+				read -n 1 -p "# $${LINE} - kill? [Yn] " ANSWER; \
+				if [ $$? -eq 0 ]; then \
+					[ -n "$${ANSWER}" ] && echo ""; \
+					if [ -z "$${ANSWER}" -o "$${ANSWER}" == "y" -o "$${ANSWER}" == "Y" ]; then \
+							${CMD} kill -INT "$${RP}" \
+								&& echo "# killed $${RP}" \
+								|| echo "# error killing $${RP}"; \
+					fi; \
+				fi; \
+			done; \
+		fi
 
 profile.mem: export BE_PROFILE_MODE=mem
 profile.mem: export BE_PROFILE_PATH=.
