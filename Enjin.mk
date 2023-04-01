@@ -17,8 +17,8 @@
 #: uncomment to echo instead of execute
 #CMD=echo
 
-.PHONY: audit audit-% be-update build build-dev-run build-dlv-run check clean
-.PHONY: con-% dev dist-clean dlv help heroku-logs heroku-push local
+.PHONY: audit audit-% be-update build build-dev-run check clean
+.PHONY: con-% dev dist-clean help local
 .PHONY: profile.cpu profile.mem release release-dev-run run stop tidy unlocal
 .PHONY: yarn-% _audit _enjenv _golang _nodejs
 .PHONY: _check_make_target _clean _enjenv_bin
@@ -30,7 +30,7 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.2.2
+ENJIN_MK_VERSION = v0.2.3
 
 SHELL = /bin/bash
 
@@ -73,6 +73,24 @@ BE_LOCAL_PATH ?= ${BE_PATH}
 
 _INTERNAL_BUILD_LOG_ := /dev/null
 #_INTERNAL_BUILD_LOG_ := ./build.log
+
+DEFAULT_CONSOLE_KEY ?=
+BE_CONSOLE_KEYS ?=
+
+
+HEROKU_BIN := $(shell which heroku)
+
+DLV_PORT ?= 2345
+DLV_DEBUG ?=
+
+ifdef override_run
+ifdef override_dlv
+DLV_BIN := $(shell which dlv)
+endif
+else
+DLV_BIN := $(shell which dlv)
+endif
+
 
 ifeq ($(origin ENJENV_BIN),undefined)
 ENJENV_BIN:=$(shell which enjenv)
@@ -129,39 +147,41 @@ PROFILE_PATH ?= .
 EXTRA_LDFLAGS ?=
 EXTRA_GCFLAGS ?=
 
+RUN_ARGV ?=
+
 _MAKE_TARGETS := $($(MAKE) list-make-targets 2>/dev/null)
 
 _ALL_FEATURES_PRESENT := $(shell ${ENJENV_EXE} features list 2>/dev/null)
 
-_LIST_PACKAGE_JSON := `\
+_LIST_PACKAGE_JSON := $(shell \
 	echo "_list_package_json" >> ${_INTERNAL_BUILD_LOG_}; \
-	ls */package.json 2> /dev/null`
+	ls */package.json 2> /dev/null)
 
-_LIST_NODE_PATHS := `\
+_LIST_NODE_PATHS := $(shell \
 	echo "_list_node_paths" >> ${_INTERNAL_BUILD_LOG_}; \
 	ls */package.json 2> /dev/null | while read P; do \
 		dirname $${P}; \
-	done`
+	done)
 
-_ENJENV_PRESENT := `\
+_ENJENV_PRESENT := $(shell \
 	echo "_enjenv_present" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
 		echo "present"; \
-	fi`
+	fi)
 
-_GO_PRESENT := `\
+_GO_PRESENT := $(shell \
 	echo "_go_present" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ -n "$(call _has_feature,go)" ]; then \
 		echo "present"; \
-	fi`
+	fi)
 
-_YARN_PRESENT := `\
+_YARN_PRESENT := $(shell \
 	echo "_yarn_present" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ -n "$(call _has_feature,yarn)" ]; then \
 		echo "present"; \
-	fi`
+	fi)
 
-_DEPS_PRESENT := `\
+_DEPS_PRESENT := $(shell \
 	echo "_deps_present" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ \
 			"${_ENJENV_PRESENT}"  == "present" \
@@ -169,15 +189,15 @@ _DEPS_PRESENT := `\
 			-a "${_YARN_PRESENT}" == "present" \
 	]; then \
 		echo "deps-present"; \
-	fi`
+	fi)
 
-_BUILD_ARGS = `\
+_BUILD_ARGS = $(shell \
 	echo "_build_args" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ "${RELEASE_BUILD}" == "true" ]; then \
 		echo " --optimize "; \
-	fi`
+	fi)
 
-_BUILD_TAGS = `\
+_BUILD_TAGS = $(shell \
 echo "_build_tags" >> ${_INTERNAL_BUILD_LOG_}; \
 if [ "${RELEASE_BUILD}" == "true" ]; then \
 	if [ "${BUILD_TAGS}" != "" ]; then \
@@ -185,7 +205,7 @@ if [ "${RELEASE_BUILD}" == "true" ]; then \
 	fi; \
 elif [ "${DEV_BUILD_TAGS}" != "" ]; then \
 	echo "-tags ${DEV_BUILD_TAGS}"; \
-fi`
+fi)
 
 define _check_make_target
 	echo "_check_make_target $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
@@ -253,6 +273,27 @@ define _make_extra_pkgs
 $(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$($(key)_GO_PACKAGE)@latest))
 endef
 
+define _make_console_names
+$(if ${BE_CONSOLE_KEYS},$(foreach key,${BE_CONSOLE_KEYS},$(shell echo "$($(key)_CONSOLE_NAME)")))
+endef
+
+define _first_console_name
+$(shell \
+	for name in $(call _make_console_names); do \
+		echo "$${name}"; \
+		break; \
+	done)
+endef
+
+define _default_console_name
+$(shell \
+	if [ -n "${DEFAULT_CONSOLE_KEY}" ]; then \
+		echo "$($(DEFAULT_CONSOLE_KEY)_CONSOLE_NAME)"; \
+	elif [ -n "${BE_CONSOLE_KEYS}" ]; then \
+		echo "$(call _first_console_name)"; \
+	fi)
+endef
+
 define _has_feature
 $(shell \
 	if [ -n "$(1)" -a "$(1)" != "yarn--" -a "$(1)" != "yarn---install" ]; then \
@@ -294,7 +335,7 @@ endef
 define _yarn_tag_install
 	if [ -n "$(1)" ]; then \
 		echo "_yarn_tag_install $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
-		if ${ENJENV_EXE} features has yarn-$(1)--install; then \
+		if ( ${ENJENV_EXE} features has yarn-$(1)--install 2>&1 ) > /dev/null; then \
 			${CMD} ${ENJENV_EXE} yarn-$(1)--install; \
 		fi; \
 	fi
@@ -317,7 +358,7 @@ endef
 define _yarn_run_script
 	if [ -n "$(1)" -a -n "$(2)" ]; then \
 		echo "_yarn_run_script $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
-		if ${ENJENV_EXE} features has yarn-$(1)-$(2); then \
+		if ( ${ENJENV_EXE} features has yarn-$(1)-$(2) 2>&1 ) > /dev/null; then \
 			${CMD} ${ENJENV_EXE} yarn-$(1)-$(2); \
 		else \
 			echo "# yarn-$(1)-$(2) script not found"; \
@@ -343,22 +384,28 @@ define _source_activate_run
 endef
 
 define _run
-	@if [ ! -x "${APP_NAME}" ]; then \
+	if [ ! -x "${APP_NAME}" ]; then \
 		echo "${APP_NAME} not found or not executable"; \
 		false; \
-	fi
-	@echo "# running ${APP_NAME} -- ${RUN_ARGV}"
-	@if [ "${DEBUG}" == "true" ]; then \
-		if [ "${DLV_DEBUG}" == "true" ]; then \
+	fi; \
+	if [ "${DEBUG}" == "true" ]; then \
+		if [ "${DLV_DEBUG}" == "true" -a -n "${DLV_BIN}" ]; then \
+			echo "# delving ${APP_NAME} ${RUN_ARGV}"; \
 			$(call _env_run_vars) \
-			dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient \
+			${DLV_BIN} --listen=:${DLV_PORT} --headless=true --api-version=2 --accept-multiclient \
 				exec -- ./${APP_NAME} ${RUN_ARGV}; \
 		else \
+			echo "# running ${APP_NAME} ${RUN_ARGV}"; \
 			${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
 		fi; \
 	else \
+		echo "# running ${APP_NAME} ${RUN_ARGV}"; \
 		${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
-	fi
+	fi;
+endef
+
+define is_defined
+$(if $(strip $($1)),true,false)
 endef
 
 list-make-targets:
@@ -407,34 +454,61 @@ help:
 	@echo "  release       build a release version of ${APP_NAME}"
 	@echo
 	@echo "Runtime Targets:"
-	@echo "  dev           set for DEBUG mode and run ./${APP_NAME}"
+	@echo "  dev           set DEBUG mode and run ./${APP_NAME}"
+ifneq (${DLV_BIN},)
+	@echo "  dlv           same as 'dev' ran with headless dlv (port ${DLV_PORT})"
+endif
 	@echo "  run           execute ./${APP_NAME}"
 	@echo "  stop          interrupt running ${APP_NAME}"
+	@echo
+	@echo "Aesthetic Targets:"
+	@echo "  build-dev-run   make build dev with colourized output"
+ifneq (${DLV_BIN},)
+	@echo "  build-dlv-run   make build dlv with colourized output"
+endif
+
+	@echo
+	@echo "#############################################################"
+	@echo
+	@echo "Profiling Targets:"
+	@echo "  profile.cpu   make build dev with cpu profiling"
+	@echo "  profile.mem   make build dev with mem profiling"
+	@echo
+	@echo "  note: use 'make stop' from another terminal to end profiling"
+
 ifneq (${_DEPS_PRESENT},)
+	@echo
+	@echo "#############################################################"
 	@echo
 	@echo "Auditing Targets:"
 endif
 ifneq (${_GO_PRESENT},)
 	@echo "  audit		runs enjenv go-audit-report"
 endif
-	@echo
-	@echo "profiling targets:"
-	@echo "  profile.cpu   make build dev with cpu profiling"
-	@echo "  profile.mem   make build dev with mem profiling"
-	@echo
-	@echo "  note: use 'make stop' from another terminal to end profiling"
-	@echo
-	@echo "helper targets:"
-	@echo "  help          this screen of output"
-	@echo "  tidy          run go mod tidy"
-	@echo "  local         go mod -replace for ${GO_ENJIN_PKG}"
-	@echo "  unlocal       go mod -dropreplace for ${GO_ENJIN_PKG}"
-	@echo "  be-update     go clean and get -u ${GO_ENJIN_PKG}"
 ifneq (${_LIST_PACKAGE_JSON},)
 	@$(shell \
 		for tag in ${_LIST_NODE_PATHS}; do \
 			echo "echo \"  audit-$${tag}	runs enjenv $${tag}-audit-report\""; \
 		done)
+endif
+
+ifneq (${HEROKU_BIN},)
+	@echo
+	@echo "#############################################################"
+	@echo
+	@echo "Heroku Targets:"
+	@echo "  heroku-tail      wrapper for: heroku logs --tail"
+	@echo "  heroku-push      wrapper for: git push ${HEROKU_GIT_REMOTE} ${HEROKU_SRC_BRANCH}:${HEROKU_DST_BRANCH}"
+	@echo
+	@echo " Configure heroku-push"
+	@echo "   HEROKU_GIT_REMOTE=${HEROKU_GIT_REMOTE}"
+	@echo "   HEROKU_SRC_REMOTE=${HEROKU_SRC_BRANCH}"
+	@echo "   HEROKU_DST_REMOTE=${HEROKU_DST_BRANCH}"
+endif
+
+ifneq (${_LIST_PACKAGE_JSON},)
+	@echo
+	@echo "#############################################################"
 	@echo
 	@echo "There are nodejs package.json files present in this project"
 	@echo "and enjenv has convenient wrappers for a number of extra"
@@ -444,7 +518,7 @@ ifneq (${_LIST_PACKAGE_JSON},)
 	@echo
 	@echo "Yarn Targets:"
 	@$(shell \
-if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
+	if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
 		_ENJENV_HELP=$$(${ENJENV_EXE} features list); \
 		_FOUND=""; \
 		for tag in ${_LIST_NODE_PATHS}; do \
@@ -458,8 +532,39 @@ if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
 				echo "echo \"  yarn-$${tag}-install\";"; \
 			done; \
 		fi; \
-fi)
+	fi)
+	@echo
 endif
+
+ifneq (${BE_CONSOLE_KEYS},)
+	@echo
+	@echo "#############################################################"
+	@echo
+	@echo "Console Targets:"
+	@echo -e "  list-consoles\t\t# (list all console targets)"
+	@echo -e "  console\t\t# (run default/first console)"
+	@$(if ${BE_CONSOLE_KEYS},$(foreach key,${BE_CONSOLE_KEYS},$(shell \
+	_NAME_="$($(key)_CONSOLE_NAME)"; \
+	_DESC_="$($(key)_CONSOLE_DESC)"; \
+	[ -z "$${_DESC_}" ] && _DESC_="(description not found)"; \
+	echo "echo -e \"  con-$${_NAME_}\t# ($${_DESC_})\""; \
+)))
+
+endif
+
+	@echo
+	@echo "#############################################################"
+	@echo
+	@echo "Helper Targets:"
+	@echo "  help          this screen of output"
+	@echo "  tidy          run go mod tidy"
+	@echo "  local         go mod -replace for ${GO_ENJIN_PKG}"
+	@echo "  unlocal       go mod -dropreplace for ${GO_ENJIN_PKG}"
+	@echo "  be-update     go clean and get ${GO_ENJIN_PKG}"
+ifeq (${DLV_BIN},)
+	@echo "  install-dlv   run go install github.com/go-delve/delve@latest"
+endif
+
 	@echo
 	@echo "#############################################################"
 	@echo
@@ -485,7 +590,7 @@ endif
 	@echo
 	@echo "Assumed Dependencies:"
 	@echo "  os            linux or darwin"
-	@echo "  arch          arm64 and amd64 are supported"
+	@echo "  arch          arm64 or amd64"
 	@echo "  make          GNU make is installed"
 	@echo "  coreutils     GNU coreutils is installed"
 	@echo
@@ -612,20 +717,66 @@ release: export RELEASE_BUILD=true
 release: build
 	@$(call _upx_build,"${APP_NAME}")
 
-RUN_ARGV ?=
-
+run: _HAS_O_RUN_=$(call is_defined,override_run)
+run: _HAS_O_DLV_=$(call is_defined,override_dlv)
 run:
+	@echo "# processing run overrides"
 ifdef pre_run
+	@echo "# calling pre_run"
 	@$(call pre_run)
 endif
-ifdef override_run
-	@$(call override_run)
-else
-	@$(call _run)
-endif
+	@if [ "${_HAS_O_RUN_}" == "true" ]; then \
+		echo "# override_run present"; \
+		if [ -n "${DLV_DEBUG}" ]; then \
+			echo "# delving requested"; \
+			if [ "${_HAS_O_DLV_}" == "true" ]; then \
+				echo "# calling override_dlv"; \
+				$(call override_dlv) \
+			else \
+				echo "error: override_dlv not defined in Makefile"; \
+				false; \
+			fi; \
+		else \
+			echo "# normal run requested"; \
+			echo "# calling override_run"; \
+			$(call override_run) \
+		fi; \
+	else \
+		echo "# override_run not present"; \
+		if [ -n "${DLV_DEBUG}" ]; then \
+			echo "# delving requested"; \
+			if [ "${_HAS_O_DLV_}" == "true" ]; then \
+				echo "# calling override_dlv"; \
+				$(call override_dlv) \
+			else \
+				echo "# calling normal run"; \
+				$(call _run) \
+			fi; \
+		else \
+			echo "# calling normal run"; \
+			$(call _run) \
+		fi; \
+	fi
 ifdef post_run
+	@echo "# calling post_run"
 	@$(call post_run)
 endif
+
+ifneq (${BE_CONSOLE_KEYS},)
+.PHONY: list-consoles console con-%
+
+console:
+	@_DEFAULT_=$(call _default_console_name); \
+	if [ -n "$${_DEFAULT_}" ]; then \
+		$(MAKE) RUN_ARGV="console $${_DEFAULT_}" run; \
+	else \
+		echo "# default/first console not found"; \
+	fi
+
+list-consoles:
+	@for name in $(if ${BE_CONSOLE_KEYS},$(foreach key,${BE_CONSOLE_KEYS}, $($(key)_CONSOLE_NAME))); do \
+		echo "con-$${name}"; \
+	done
 
 con-%: export CON_TAG=$(patsubst con-%,%,$@)
 con-%: export RUN_ARGV=console ${CON_TAG}
@@ -635,12 +786,21 @@ ifdef override_run
 else
 	@$(call _run)
 endif
+endif
 
 dev: DEBUG=true
 dev: run
 
+ifneq (${DLV_BIN},)
+.PHONY: dlv
+
 dlv: DLV_DEBUG=true
 dlv: dev
+else
+install-dlv: _golang
+	@echo "# installing go-delve..."
+	@go install github.com/go-delve/delve/cmd/dlv@latest
+endif
 
 _audit: _golang
 	@$(call _golang_nancy_installed)
@@ -675,6 +835,10 @@ yarn-%: _enjenv _nodejs
 	fi
 endif
 
+ifneq (${HEROKU_BIN},)
+
+.PHONY: heroku-logs heroku-push
+
 HEROKU_GIT_REMOTE ?= heroku
 HEROKU_SRC_BRANCH ?= trunk
 HEROKU_DST_BRANCH ?= main
@@ -685,17 +849,23 @@ heroku-push:
 heroku-logs:
 	@${CMD} heroku logs --tail
 
+endif
+
 # this requires Term::ANSIColor, will error if not present,
 # use `make build dev` instead
 
-build-dlv-run: build
-	@( $(MAKE) dlv 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+ifneq (${DLV_BIN},)
+.PHONY: build-dlv-run
 
-build-dev-run: build
-	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+build-dlv-run:
+	@( $(MAKE) build dlv 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+endif
 
-release-dev-run: release
-	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+build-dev-run:
+	@( $(MAKE) build dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+
+release-dev-run:
+	@( $(MAKE) release dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
 stop:
 	@RUNNING_PIDS=$$(\
