@@ -30,7 +30,7 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.2.3
+ENJIN_MK_VERSION = v0.2.4
 
 SHELL = /bin/bash
 
@@ -319,6 +319,16 @@ define _env_run_vars
 	${ENV_PREFIX}_DENY_DURATION="${DENY_DURATION}"
 endef
 
+ifdef override_env_run_vars
+define _get_run_vars
+	$(call override_env_run_vars)
+endef
+else
+define _get_run_vars
+	$(call _env_run_vars)
+endef
+endif
+
 define _is_nodejs_tag
 	echo "_is_nodejs_tag $(1)" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ "$(1)" != "" -a -d "$(1)" ]; then \
@@ -383,29 +393,76 @@ define _source_activate_run
 	fi
 endef
 
-define _run
+define _run_checks
 	if [ ! -x "${APP_NAME}" ]; then \
 		echo "${APP_NAME} not found or not executable"; \
 		false; \
-	fi; \
+	fi;
+endef
+
+ifdef override_run_checks
+define _get_run_checks
+	$(call override_run_checks)
+endef
+else
+define _get_run_checks
+	$(call _run_checks)
+endef
+endif
+
+define _run
+	$(call _get_run_checks) \
 	if [ "${DEBUG}" == "true" ]; then \
 		if [ "${DLV_DEBUG}" == "true" -a -n "${DLV_BIN}" ]; then \
 			echo "# delving ${APP_NAME} ${RUN_ARGV}"; \
-			$(call _env_run_vars) \
+			$(call _get_run_vars) \
 			${DLV_BIN} --listen=:${DLV_PORT} --headless=true --api-version=2 --accept-multiclient \
 				exec -- ./${APP_NAME} ${RUN_ARGV}; \
 		else \
 			echo "# running ${APP_NAME} ${RUN_ARGV}"; \
-			${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
+			${CMD} $(call _get_run_vars) ./${APP_NAME} ${RUN_ARGV}; \
 		fi; \
 	else \
 		echo "# running ${APP_NAME} ${RUN_ARGV}"; \
-		${CMD} bash -c "set -m; $(call _env_run_vars) ./${APP_NAME} ${RUN_ARGV}"; \
+		${CMD} $(call _get_run_vars) ./${APP_NAME} ${RUN_ARGV}; \
 	fi;
 endef
 
 define is_defined
 $(if $(strip $($1)),true,false)
+endef
+
+define _find_pid_tree
+`\
+	function _all_children { \
+		for cid in $$(ps -o pid= --ppid "$${1}"); \
+		do \
+			echo $$(_all_children "$${cid}"); \
+			echo "$${cid}"; \
+		done; \
+	}; \
+	function _up_to_first_make { \
+		for ppid in $$(ps -o ppid= -p "$${1}"); \
+		do \
+			NAME="$$(ps -o command= -p "$${ppid}" | awk '{print $$1 $$2}')"; \
+			if echo "$${NAME}" | egrep -q '^(/.*/bash-c|/.*/make.*|make.*)$$'; then \
+				echo "$${ppid}"; \
+				echo $$(_up_to_first_make "$${ppid}"); \
+			fi; \
+		done; \
+	}; \
+	FOUND=""; \
+	for pid in $$(_all_children "$(1)") $(1) $$(_up_to_first_make "$(1)") \
+	; \
+	do \
+		if [ -z "$${FOUND}" ]; then \
+			FOUND="$${pid}"; \
+		else \
+			FOUND="$${FOUND} $${pid}"; \
+		fi; \
+	done; \
+	echo "$${FOUND}" \
+`
 endef
 
 list-make-targets:
@@ -857,15 +914,15 @@ endif
 ifneq (${DLV_BIN},)
 .PHONY: build-dlv-run
 
-build-dlv-run:
-	@( $(MAKE) build dlv 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+build-dlv-run: build
+	@( $(MAKE) dlv 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 endif
 
-build-dev-run:
-	@( $(MAKE) build dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+build-dev-run: build
+	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
-release-dev-run:
-	@( $(MAKE) release dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+release-dev-run: release
+	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
 stop:
 	@RUNNING_PIDS=$$(\
@@ -875,26 +932,65 @@ stop:
 			| awk '{print $$1}' \
 		); \
 		if [ -z "$${RUNNING_PIDS}" ]; then \
-			echo "# ${APP_NAME} process not found, nothing to stop"; \
+			echo "# no ${APP_NAME} processes found, nothing to stop"; \
 		else \
-			echo "# found `echo "$${RUNNING_PIDS}" | wc -l` ${APP_NAME} processes"; \
 			for RP in $${RUNNING_PIDS}; do \
+				RP_WD=$$( lsof -a -p $${RP} -d cwd -F n | tail -1 | cut -c2- ); \
 				LINE=$$(\
 					COLUMNS=1024 ps -x -a -o pid=,command= \
 						| egrep -v '(grep|tail)' \
 						| egrep "^\\s*$${RP}\\s*\./${APP_NAME}\$$" \
 				); \
-				read -n 1 -p "# $${LINE} - kill? [Yn] " ANSWER; \
-				if [ $$? -eq 0 ]; then \
+				RP_TREE=$(call _find_pid_tree,$${RP}); \
+				echo "#######################################################"; \
+				echo "# workdir: $${RP_WD}"; \
+				echo "# process: $${LINE}"; \
+				echo "# pidtree:"; \
+				for pid in $${RP_TREE}; do \
+						INFO=$$(\
+							COLUMNS=25 \
+							ps -o command= -p $${pid} \
+								| perl -pe 's!(^\s*|\s*$$)!!g;$$v=$$_;$$_="";print $$v;print "..." unless (length($$v) <= 24);' \
+						); \
+						echo "#          $${pid} - $${INFO}"; \
+				done; \
+				echo "#"; \
+				if [ -z "${STOP_ALL}" -a -n "$${RP_WD}" -a "$${RP_WD}" != "$${PWD}" ]; then \
+					echo "# skipped (not this path: $${PWD})"; \
+					echo ""; \
+					continue; \
+				fi; \
+				rv=0; \
+				if [ -z "${FORCE_STOP}" ]; then \
+					read -n 1 -p "# terminate? [Yn] " ANSWER; \
+					rv=$$?; \
+				else \
+					echo "# terminate? [Yn] y"; \
+				fi; \
+				if [ $${rv} -eq 0 ]; then \
 					[ -n "$${ANSWER}" ] && echo ""; \
 					if [ -z "$${ANSWER}" -o "$${ANSWER}" == "y" -o "$${ANSWER}" == "Y" ]; then \
-							${CMD} kill -INT "$${RP}" \
-								&& echo "# killed $${RP}" \
-								|| echo "# error killing $${RP}"; \
+						for pid in $${RP_TREE}; do \
+							${CMD} kill -TERM $${pid} 2> /dev/null; \
+						done; \
+						echo "# terminated: $${RP_TREE}"; \
 					fi; \
+				else \
+					echo "# stop target aborted"; \
 				fi; \
+				echo ""; \
 			done; \
 		fi
+
+stop-all: STOP_ALL=true
+stop-all: stop
+
+force-stop: FORCE_STOP=true
+force-stop: stop
+
+force-stop-all: STOP_ALL=true
+force-stop-all: FORCE_STOP=true
+force-stop-all: stop
 
 profile.mem: export BE_PROFILE_MODE=mem
 profile.mem: export BE_PROFILE_PATH=.
