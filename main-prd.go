@@ -19,9 +19,10 @@ package main
 import (
 	"embed"
 
-	"github.com/go-enjin/be/features/fs/embeds/content"
-	"github.com/go-enjin/be/features/fs/embeds/menu"
-	"github.com/go-enjin/be/features/fs/embeds/public"
+	"github.com/go-enjin/be/features/fs/content"
+	"github.com/go-enjin/be/features/fs/menu"
+	"github.com/go-enjin/be/features/fs/public"
+
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/theme"
 )
@@ -40,18 +41,17 @@ var menuFsWWW embed.FS
 var themeFs embed.FS
 
 func init() {
-	fMenu = menu.New().MountPathFs("menus", "menus", menuFsWWW).Make()
-	fPublic = public.New().MountPathFs("/", "public", publicFs).Make()
+	fMenu = menu.New().MountEmbedPath("menus", "menus", menuFsWWW).Make()
+	fPublic = public.New().MountEmbedPath("/", "public", publicFs).Make()
 	fContent = content.New().
-		MountPathFs("/", "content", contentFsWWW).
+		MountEmbedPath("/", "content", contentFsWWW).
+		AddToIndexProviders(gPqlFeature).
 		Make()
-
-	hotReload = false
 }
 
 func quotedFyiTheme() (t *theme.Theme) {
 	var err error
-	if t, err = theme.NewEmbed("themes/quoted-fyi", themeFs); err != nil {
+	if t, err = theme.NewEmbed("enjin", "themes/quoted-fyi", themeFs); err != nil {
 		log.FatalF("error loading embed theme: %v", err)
 	} else {
 		log.DebugF("loaded embed theme: %v", t.Name)

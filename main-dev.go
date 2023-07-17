@@ -17,9 +17,9 @@
 package main
 
 import (
-	localContent "github.com/go-enjin/be/features/fs/locals/content"
-	"github.com/go-enjin/be/features/fs/locals/menu"
-	"github.com/go-enjin/be/features/fs/locals/public"
+	"github.com/go-enjin/be/features/fs/content"
+	"github.com/go-enjin/be/features/fs/menu"
+	"github.com/go-enjin/be/features/fs/public"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/profiling"
 	"github.com/go-enjin/be/pkg/theme"
@@ -31,18 +31,17 @@ func init() {
 	// log.Config.Apply()
 
 	profiling.Start()
-	fMenu = menu.New().MountPath("menus", "menus").Make()
-	fPublic = public.New().MountPath("/", "public").Make()
-	fContent = localContent.New().
-		MountPath("/", "content").
+	fMenu = menu.New().MountLocalPath("menus", "menus").Make()
+	fPublic = public.New().MountLocalPath("/", "public").Make()
+	fContent = content.New().
+		MountLocalPath("/", "content").
+		AddToIndexProviders(gPqlFeature).
 		Make()
-
-	hotReload = true
 }
 
 func quotedFyiTheme() (t *theme.Theme) {
 	var err error
-	if t, err = theme.NewLocal("themes/quoted-fyi"); err != nil {
+	if t, err = theme.NewLocal("enjin", "themes/quoted-fyi"); err != nil {
 		log.FatalF("error loading local theme: %v", err)
 	} else {
 		log.DebugF("loaded local theme: %v", t.Name)
