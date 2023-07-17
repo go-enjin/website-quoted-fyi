@@ -30,11 +30,9 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.2.4
+ENJIN_MK_VERSION = v0.2.9
 
 SHELL = /bin/bash
-
-DEBUG ?= false
 
 ifeq ($(origin APP_NAME),undefined)
 APP_NAME := $(shell basename `pwd`)
@@ -43,15 +41,26 @@ APP_SUMMARY ?= Go-Enjin
 ENV_PREFIX  ?= BE
 APP_PREFIX  ?= ${USER}
 
+UNTAGGED_VERSION ?= v0.0.0
+
+BE_DEBUG ?= false
+
 LISTEN        ?=
 PORT          ?= 3334
-DEBUG         ?= false
+DEBUG         ?= ${BE_DEBUG}
 STRICT        ?= false
 DOMAIN        ?=
 DENY_DURATION ?= 86400
 
-BUILD_TAGS ?=
-DEV_BUILD_TAGS ?= ${BUILD_TAGS}
+BUILD_TAGS        ?=
+BUILD_ARGV        ?=
+BUILD_LDFLAGS     ?=
+DEV_BUILD_TAGS    ?= ${BUILD_TAGS}
+DEV_BUILD_ARGV    ?=
+DEV_BUILD_GCFLAGS ?=
+
+
+
 GOPKG_KEYS ?=
 
 CLEAN      ?= ${APP_NAME} cpu.pprof mem.pprof
@@ -65,6 +74,7 @@ GO_MOD ?= 1020
 NODEJS ?=
 
 RELEASE_BUILD ?= false
+PRE_RELEASE_BUILD ?= false
 
 GO_ENJIN_PKG ?= github.com/go-enjin/be
 
@@ -77,20 +87,24 @@ _INTERNAL_BUILD_LOG_ := /dev/null
 DEFAULT_CONSOLE_KEY ?=
 BE_CONSOLE_KEYS ?=
 
-
 HEROKU_BIN := $(shell which heroku)
 
 DLV_PORT ?= 2345
 DLV_DEBUG ?=
 
-ifdef override_run
-ifdef override_dlv
 DLV_BIN := $(shell which dlv)
-endif
-else
-DLV_BIN := $(shell which dlv)
-endif
 
+ENJENV_PKG  ?= github.com/go-enjin/enjenv/cmd/enjenv@latest
+ENJENV_DIR_NAME ?= .enjenv
+ENJENV_DIR ?= ${ENJENV_DIR_NAME}
+
+PROFILE_PATH ?= .
+
+RUN_ARGV ?=
+
+#
+#: dynamically defined global variables and functions
+#
 
 ifeq ($(origin ENJENV_BIN),undefined)
 ENJENV_BIN:=$(shell which enjenv)
@@ -111,10 +125,6 @@ ENJENV_EXE:=$(shell \
 	fi)
 endif
 
-ENJENV_PKG  ?= github.com/go-enjin/enjenv/cmd/enjenv@latest
-ENJENV_DIR_NAME ?= .enjenv
-ENJENV_DIR ?= ${ENJENV_DIR_NAME}
-
 ifeq ($(origin ENJENV_PATH),undefined)
 ENJENV_PATH := $(shell \
 	echo "_enjenv_path" >> ${_INTERNAL_BUILD_LOG_}; \
@@ -124,8 +134,6 @@ ENJENV_PATH := $(shell \
 		echo "${PWD}/${ENJENV_DIR}"; \
 	fi)
 endif
-
-UNTAGGED_VERSION ?= v0.0.0
 
 ifeq ($(origin VERSION),undefined)
 VERSION := $(shell \
@@ -141,13 +149,6 @@ RELEASE := $(shell \
 		${ENJENV_EXE} rel-ver; \
 	fi)
 endif
-
-PROFILE_PATH ?= .
-
-EXTRA_LDFLAGS ?=
-EXTRA_GCFLAGS ?=
-
-RUN_ARGV ?=
 
 _MAKE_TARGETS := $($(MAKE) list-make-targets 2>/dev/null)
 
@@ -194,17 +195,41 @@ _DEPS_PRESENT := $(shell \
 _BUILD_ARGS = $(shell \
 	echo "_build_args" >> ${_INTERNAL_BUILD_LOG_}; \
 	if [ "${RELEASE_BUILD}" == "true" ]; then \
-		echo " --optimize "; \
+		echo " --optimize"; \
+	fi)
+
+_BUILD_ARGV = $(shell \
+	echo "_build_argv" >> ${_INTERNAL_BUILD_LOG_}; \
+	if [ "${RELEASE_BUILD}" == "true" -o "${PRE_RELEASE_BUILD}" == "true" ]; then \
+		echo "${BUILD_ARGV}"; \
+	else \
+		echo "${DEV_BUILD_ARGV}"; \
+	fi)
+
+_EXTRA_LDFLAGS := $(shell \
+	if [ "${RELEASE_BUILD}" == true ]; then \
+		echo "${BUILD_LDFLAGS}"; \
+	else \
+		echo "${DEV_BUILD_LDFLAGS}"; \
+	fi)
+
+_EXTRA_GCFLAGS := $(shell \
+	if [ "${RELEASE_BUILD}" == true ]; then \
+		echo "${BUILD_GCFLAGS}"; \
+	else \
+		echo "${DEV_BUILD_GCFLAGS}"; \
 	fi)
 
 _BUILD_TAGS = $(shell \
 echo "_build_tags" >> ${_INTERNAL_BUILD_LOG_}; \
-if [ "${RELEASE_BUILD}" == "true" ]; then \
+if [ "${RELEASE_BUILD}" == "true" -o "${PRE_RELEASE_BUILD}" == "true" ]; then \
 	if [ "${BUILD_TAGS}" != "" ]; then \
-		echo "-tags ${BUILD_TAGS}"; \
+		tags=`echo "${BUILD_TAGS}" | perl -pe 's!\s+!,!msg;s!,$$!!;'`; \
+		echo "-tags $${tags}"; \
 	fi; \
 elif [ "${DEV_BUILD_TAGS}" != "" ]; then \
-	echo "-tags ${DEV_BUILD_TAGS}"; \
+	tags=`echo "${DEV_BUILD_TAGS}" | perl -pe 's!\s+!,!msg;s!,$$!!;'`; \
+	echo "-tags $${tags}"; \
 fi)
 
 define _check_make_target
@@ -412,20 +437,15 @@ endif
 
 define _run
 	$(call _get_run_checks) \
-	if [ "${DEBUG}" == "true" ]; then \
-		if [ "${DLV_DEBUG}" == "true" -a -n "${DLV_BIN}" ]; then \
-			echo "# delving ${APP_NAME} ${RUN_ARGV}"; \
-			$(call _get_run_vars) \
-			${DLV_BIN} --listen=:${DLV_PORT} --headless=true --api-version=2 --accept-multiclient \
-				exec -- ./${APP_NAME} ${RUN_ARGV}; \
-		else \
-			echo "# running ${APP_NAME} ${RUN_ARGV}"; \
-			${CMD} $(call _get_run_vars) ./${APP_NAME} ${RUN_ARGV}; \
-		fi; \
+	if [ "${DLV_DEBUG}" == "true" -a -n "${DLV_BIN}" ]; then \
+		echo "# delving ${APP_NAME} ${RUN_ARGV}"; \
+		${CMD} $(call _get_run_vars) \
+		${DLV_BIN} --listen=:${DLV_PORT} --headless=true --api-version=2 --accept-multiclient \
+			exec -- ./${APP_NAME} ${RUN_ARGV}; \
 	else \
 		echo "# running ${APP_NAME} ${RUN_ARGV}"; \
 		${CMD} $(call _get_run_vars) ./${APP_NAME} ${RUN_ARGV}; \
-	fi;
+	fi
 endef
 
 define is_defined
@@ -493,6 +513,10 @@ if [ -n "${ENJENV_EXE}" -a -x "${ENJENV_EXE}" ]; then \
 			done; \
 		fi; \
 fi)
+
+#
+#: actual make targets
+#
 
 help:
 	@echo "${APP_NAME} - ${APP_SUMMARY}"
@@ -716,6 +740,7 @@ unlocal: _golang
 	@$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_unlocal,$($(key)_GO_PACKAGE));))
 	@$(call _make_go_unlocal,${GO_ENJIN_PKG})
 
+be-update: export GOPROXY=direct
 be-update: PKG_LIST = ${GO_ENJIN_PKG}@latest $(call _make_extra_pkgs)
 be-update: _golang
 	@$(call _validate_extra_pkgs)
@@ -746,8 +771,8 @@ build: export BE_SUMMARY=${APP_SUMMARY}
 build: export BE_ENV_PREFIX=${ENV_PREFIX}
 build: export BE_VERSION=${VERSION}
 build: export BE_RELEASE=${RELEASE}
-build: export ENJENV_GO_LDFLAGS=${EXTRA_LDFLAGS}
-build: export ENJENV_GO_GCFLAGS=${EXTRA_GCFLAGS}
+build: export ENJENV_GO_LDFLAGS=${_EXTRA_LDFLAGS}
+build: export ENJENV_GO_GCFLAGS=${_EXTRA_GCFLAGS}
 build: _golang ${EXTRA_BUILD_TARGET_DEPS}
 ifdef pre_build
 	@$(call pre_build)
@@ -755,12 +780,15 @@ endif
 ifdef override_build
 	@$(call override_build)
 else
-	@if [ "${RELEASE_BUILD}" == "true" ]; then \
+	@if [ "${PRE_RELEASE_BUILD}" == "true" ]; then \
+		echo "# Building pre-release: ${VERSION}, ${RELEASE}"; \
+	elif [ "${RELEASE_BUILD}" == "true" ]; then \
 		echo "# Building release: ${VERSION}, ${RELEASE}"; \
 	else \
 		echo "# Building debug: ${VERSION}, ${RELEASE}"; \
 	fi
-	@${CMD} ${ENJENV_EXE} golang build ${_BUILD_ARGS} -- -v ${_BUILD_TAGS}
+	@echo "## (LDFLAGS): \"${ENJENV_GO_LDFLAGS}\" ; (GCFLAGS): \"${ENJENV_GO_GCFLAGS}\""
+	@${CMD} ${ENJENV_EXE} golang build ${_BUILD_ARGS} -- -v ${_BUILD_TAGS} ${_BUILD_ARGV}
 	@if [ -x "./${APP_NAME}" ]; then \
 		echo "# produced: ${APP_NAME}"; \
 		sha256sum ./${APP_NAME}; \
@@ -773,6 +801,9 @@ endif
 release: export RELEASE_BUILD=true
 release: build
 	@$(call _upx_build,"${APP_NAME}")
+
+pre-release: export PRE_RELEASE_BUILD=true
+pre-release: build
 
 run: _HAS_O_RUN_=$(call is_defined,override_run)
 run: _HAS_O_DLV_=$(call is_defined,override_dlv)
@@ -825,10 +856,14 @@ ifneq (${BE_CONSOLE_KEYS},)
 console:
 	@_DEFAULT_=$(call _default_console_name); \
 	if [ -n "$${_DEFAULT_}" ]; then \
-		$(MAKE) RUN_ARGV="console $${_DEFAULT_}" run; \
+		$(MAKE) DEBUG=${DEBUG} DLV_DEBUG=${DLV_DEBUG} RUN_ARGV="console $${_DEFAULT_}" run; \
 	else \
 		echo "# default/first console not found"; \
 	fi
+
+dlv-console: export DEBUG=true
+dlv-console: export DLV_DEBUG=true
+dlv-console: console
 
 list-consoles:
 	@for name in $(if ${BE_CONSOLE_KEYS},$(foreach key,${BE_CONSOLE_KEYS}, $($(key)_CONSOLE_NAME))); do \
@@ -921,7 +956,15 @@ endif
 build-dev-run: build
 	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
+build-dev-run-quiet: build
+	@( $(MAKE) dev 2>&1 ) \
+		| egrep -v '(\s/media/|\s/css/|\.chunk\.)' - \
+		| perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+
 release-dev-run: release
+	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
+
+pre-release-dev-run: pre-release
 	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
 stop:
@@ -971,7 +1014,7 @@ stop:
 					[ -n "$${ANSWER}" ] && echo ""; \
 					if [ -z "$${ANSWER}" -o "$${ANSWER}" == "y" -o "$${ANSWER}" == "Y" ]; then \
 						for pid in $${RP_TREE}; do \
-							${CMD} kill -TERM $${pid} 2> /dev/null; \
+							${CMD} kill -KILL $${pid} 2> /dev/null; \
 						done; \
 						echo "# terminated: $${RP_TREE}"; \
 					fi; \
