@@ -15,7 +15,6 @@
 # limitations under the License.
 
 -include .env
-#export
 
 BE_LOCAL_PATH ?= ../be
 
@@ -24,10 +23,20 @@ APP_SUMMARY := quoted.fyi
 
 DENY_DURATION := 600
 
-COMMON_TAGS := embeds,zips,htmlify,buntdb,stock_pgc,stock_kws,stock_pql,page_query,page_search,page_robots,header_proxy,papertrail,basic_auth
-BUILD_TAGS := prd,$(COMMON_TAGS)
-DEV_BUILD_TAGS := dev,locals,$(COMMON_TAGS)
-EXTRA_PKGS :=
+COMMON_TAGS += htmlify
+COMMON_TAGS += papertrail
+COMMON_TAGS += header_proxy
+COMMON_TAGS += basic_auth
+COMMON_TAGS += driver_kws
+#COMMON_TAGS += driver_kvs_gocache memory bigcache memshard ristretto imcache
+COMMON_TAGS += driver_kvs_gocache memory memshard
+COMMON_TAGS += page_pql page_query page_search
+COMMON_TAGS += page_robots
+COMMON_TAGS += driver_fs_embed driver_fs_zip
+COMMON_TAGS += fs_theme fs_menu fs_content fs_public
+
+BUILD_TAGS     = prd embeds $(COMMON_TAGS)
+DEV_BUILD_TAGS = dev locals $(COMMON_TAGS)
 
 ## Custom go.mod locals
 GOPKG_KEYS := SET
@@ -35,6 +44,10 @@ GOPKG_KEYS := SET
 ## Semantic Enjin Theme
 SET_GO_PACKAGE := github.com/go-enjin/semantic-enjin-theme
 SET_LOCAL_PATH := ../semantic-enjin-theme
+
+## Go-Enjin gotext package
+#GOXT_GO_PACKAGE = github.com/go-enjin/golang-org-x-text
+#GOXT_LOCAL_PATH = ../golang-org-x-text
 
 include ./Enjin.mk
 
