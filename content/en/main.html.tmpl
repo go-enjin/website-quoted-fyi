@@ -6,8 +6,6 @@ share-twitter-url = "https://twitter.com/share?url=https://quoted.fyi&text=Quote
 share-email-url = "mailto:?subject=Quoted.FYI%20main%20content&body=Quoted%20for%20your%20information%20in%20exploring%20curious%20things.%0A%0Ahttps://quoted.fyi"
 url = "/"
 [select]
-    count-quotes = "SELECT COUNT DISTINCT .QuoteShasum"
-    count-author = "SELECT COUNT DISTINCT .QuoteAuthor"
     count-topics = "SELECT COUNT DISTINCT .QuoteCategories"
 +++
 <header>
@@ -18,7 +16,7 @@ url = "/"
     <blockquote>
         <h4>in exploring</h4>
         <p>
-            {{ .Selected.CountQuotes | numberAsInt | intcomma }} quotes from {{ .Selected.CountAuthor | numberAsInt | intcomma }}
+            {{ .NumQuotes | numberAsInt | intcomma }} quotes from {{ .NumAuthors | numberAsInt | intcomma }}
             <a href="/authors/">Authors</a> (sorted by last name),
             covering {{ .Selected.CountTopics | numberAsInt | intcomma }}
             <a href="/topics/">Topics</a> (grouped alphabetically),
