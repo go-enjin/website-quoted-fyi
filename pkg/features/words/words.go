@@ -25,10 +25,11 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/go-enjin/be/pkg/feature"
+	"github.com/go-enjin/be/pkg/fs"
+	"github.com/go-enjin/be/pkg/indexing"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
 	"github.com/go-enjin/be/pkg/page"
-	"github.com/go-enjin/be/pkg/pagecache"
 	"github.com/go-enjin/be/pkg/request/argv"
 	"github.com/go-enjin/be/pkg/theme"
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
@@ -42,17 +43,15 @@ var (
 const Tag feature.Tag = "PagesQuoteWords"
 
 type Feature interface {
-	feature.Middleware
+	feature.Feature
+	feature.UseMiddleware
 	feature.PageTypeProcessor
 }
 
 type CFeature struct {
-	feature.CMiddleware
+	feature.CFeature
 
-	cli   *cli.Context
-	enjin feature.Internals
-
-	kwp   pagecache.KeywordProvider
+	kwp   indexing.KeywordProvider
 	theme *theme.Theme
 
 	sync.RWMutex
@@ -65,6 +64,7 @@ type MakeFeature interface {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.FeatureTag = Tag
 	return f
 }
 
@@ -73,24 +73,19 @@ func (f *CFeature) Make() Feature {
 }
 
 func (f *CFeature) Init(this interface{}) {
-	f.CMiddleware.Init(this)
+	f.CFeature.Init(this)
 	f.kwp = nil
 }
 
-func (f *CFeature) Tag() (tag feature.Tag) {
-	tag = Tag
-	return
-}
-
 func (f *CFeature) Setup(enjin feature.Internals) {
-	f.enjin = enjin
-	if t, err := f.enjin.GetTheme(); err != nil {
+	f.CFeature.Setup(enjin)
+	if t, err := f.Enjin.GetTheme(); err != nil {
 		log.FatalF("error getting enjin theme: %v", err)
 	} else {
 		f.theme = t
 	}
-	for _, feat := range f.enjin.Features() {
-		if kwp, ok := feat.(pagecache.KeywordProvider); ok {
+	for _, feat := range f.Enjin.Features() {
+		if kwp, ok := feat.(indexing.KeywordProvider); ok {
 			f.kwp = kwp
 			break
 		}
@@ -101,7 +96,7 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 }
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
-	f.cli = ctx
+	err = f.CFeature.Startup(ctx)
 	return
 }
 
@@ -124,7 +119,7 @@ var RxPagePath = regexp.MustCompile(`^/w/([^/]+)/??`)
 
 func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (processed bool) {
 	if RxPagePath.MatchString(r.URL.Path) {
-		if wordPage := f.enjin.FindPage(f.enjin.SiteDefaultLanguage(), "!w/{key}"); wordPage != nil {
+		if wordPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!w/{key}"); wordPage != nil {
 
 			m := RxPagePath.FindAllStringSubmatch(r.URL.Path, 1)
 
@@ -141,7 +136,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			var word string
 			if clean, err := url.PathUnescape(m[0][1]); err != nil {
 				log.ErrorF("error unescaping url path: %v - %v", m[0][1], err)
-				f.enjin.ServeNotFound(w, r)
+				f.Enjin.ServeNotFound(w, r)
 				processed = true
 				return
 			} else {
@@ -159,7 +154,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 					ra.NumPerPage = -1
 				}
 				// log.WarnF("redirecting to clean keyword: %v -> %v from: %v", m[0][1], ra.String(), reqArgv.String())
-				f.enjin.ServeRedirect(ra.String(), w, r)
+				f.Enjin.ServeRedirect(ra.String(), w, r)
 				processed = true
 				return
 			}
@@ -170,7 +165,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			log.WarnF("found %d stubs for word: %v", selectedStubsCount, word)
 
 			var totalNumPages int
-			var matchingStubs []*pagecache.Stub
+			var matchingStubs []*fs.PageStub
 
 			if selectedStubsCount <= numPerPage {
 				totalNumPages = 1
@@ -181,7 +176,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 					totalNumPages += 1
 				}
 				if totalNumPages == 0 {
-					f.enjin.Serve404(w, r)
+					f.Enjin.Serve404(w, r)
 					processed = true
 					return
 				}
@@ -189,7 +184,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 					reqArgv.PageNumber = totalNumPages - 1
 					reqArgv.NumPerPage = numPerPage
 					// log.WarnF("redirecting to last page, page number too large: %v (%v) - %v", pageNumber, totalNumPages, reqArgv.String())
-					f.enjin.ServeRedirect(reqArgv.String(), w, r)
+					f.Enjin.ServeRedirect(reqArgv.String(), w, r)
 					processed = true
 					return
 				}
@@ -205,7 +200,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			var selectedQuotes []*page.Page
 			topicsLookup := make(map[string][]*quote.Quote)
 			for _, stub := range matchingStubs {
-				if pg, err := stub.Make(f.theme); err != nil {
+				if pg, err := page.NewFromPageStub(stub, f.theme); err != nil {
 					log.ErrorF("error making page from cache: %v", err)
 				} else {
 					selectedQuotes = append(selectedQuotes, pg)
@@ -254,7 +249,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			wordPage.Context.SetSpecific("NumPerPage", numPerPage)
 			wordPage.Context.SetSpecific("TotalTopics", len(topicsLookup))
 			wordPage.Context.SetSpecific("WordGroups", wordGroups)
-			if err := f.enjin.ServePage(wordPage, w, r); err != nil {
+			if err := f.Enjin.ServePage(wordPage, w, r); err != nil {
 				log.ErrorF("error serving words listing page: %v", err)
 			} else {
 				processed = true

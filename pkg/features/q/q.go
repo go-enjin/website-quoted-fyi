@@ -27,8 +27,8 @@ import (
 
 	"github.com/go-enjin/be/pkg/context"
 	"github.com/go-enjin/be/pkg/feature"
+	"github.com/go-enjin/be/pkg/indexing/search"
 	"github.com/go-enjin/be/pkg/page"
-	"github.com/go-enjin/be/pkg/pagecache"
 	"github.com/go-enjin/be/pkg/regexps"
 	beStrings "github.com/go-enjin/be/pkg/strings"
 	"github.com/go-enjin/be/pkg/theme"
@@ -36,14 +36,17 @@ import (
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
+const (
+	Tag feature.Tag = "QuotePageFormat"
+)
+
 var (
-	_ Feature      = (*CFeature)(nil)
-	_ MakeFeature  = (*CFeature)(nil)
-	_ types.Format = (*CFeature)(nil)
+	_ Feature     = (*CFeature)(nil)
+	_ MakeFeature = (*CFeature)(nil)
 )
 
 func init() {
-	pagecache.RegisterSearchPageType("quote")
+	search.RegisterSearchPageType("quote")
 }
 
 type Feature interface {
@@ -57,13 +60,12 @@ type MakeFeature interface {
 
 type CFeature struct {
 	feature.CFeature
-
-	enjin feature.Internals
 }
 
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.FeatureTag = Tag
 	return f
 }
 
@@ -76,12 +78,7 @@ func (f *CFeature) Init(this interface{}) {
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {
-	f.enjin = enjin
-}
-
-func (f *CFeature) Tag() (tag feature.Tag) {
-	tag = "PageFormatQuote"
-	return
+	f.CFeature.Setup(enjin)
 }
 
 func (f *CFeature) Name() (name string) {
@@ -168,7 +165,7 @@ func (f *CFeature) Process(ctx context.Context, t types.Theme, content string) (
 	var host, pgUrl string
 	if host = ctx.String(".Request.Host", ""); host == "" {
 		scheme = "http"
-		listener, port := f.enjin.ServiceInfo()
+		listener, port := f.Enjin.ServiceInfo()
 		if listener == "" || listener == "0.0.0.0" {
 			listener = "localhost"
 		}
@@ -234,7 +231,7 @@ func (f *CFeature) SearchDocumentMapping(tag language.Tag) (doctype string, dm *
 }
 
 func (f *CFeature) AddSearchDocumentMapping(tag language.Tag, indexMapping *mapping.IndexMappingImpl) {
-	doctype, _, dm := f.NewDocumentMapping(tag)
+	doctype, dm := f.SearchDocumentMapping(tag)
 	indexMapping.AddDocumentMapping(doctype, dm)
 }
 

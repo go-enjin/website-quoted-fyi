@@ -16,7 +16,6 @@ package quote
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/urfave/cli/v2"
 
@@ -25,24 +24,19 @@ import (
 )
 
 var (
-	_ Feature                   = (*CFeature)(nil)
-	_ MakeFeature               = (*CFeature)(nil)
-	_ feature.PageTypeProcessor = (*CFeature)(nil)
+	_ Feature     = (*CFeature)(nil)
+	_ MakeFeature = (*CFeature)(nil)
 )
 
 const Tag feature.Tag = "PagesQuote"
 
 type Feature interface {
 	feature.Feature
+	feature.PageTypeProcessor
 }
 
 type CFeature struct {
 	feature.CFeature
-
-	cli   *cli.Context
-	enjin feature.Internals
-
-	sync.RWMutex
 }
 
 type MakeFeature interface {
@@ -52,6 +46,7 @@ type MakeFeature interface {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.FeatureTag = Tag
 	return f
 }
 
@@ -63,17 +58,12 @@ func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 }
 
-func (f *CFeature) Tag() (tag feature.Tag) {
-	tag = Tag
-	return
-}
-
 func (f *CFeature) Setup(enjin feature.Internals) {
-	f.enjin = enjin
+	f.CFeature.Setup(enjin)
 }
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
-	f.cli = ctx
+	err = f.CFeature.Startup(ctx)
 	return
 }
 

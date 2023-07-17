@@ -22,18 +22,19 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
-	"github.com/go-enjin/golang-org-x-text/language"
 	"github.com/maruel/natural"
 	"github.com/urfave/cli/v2"
 
+	"github.com/go-enjin/golang-org-x-text/language"
+
 	"github.com/go-enjin/be/pkg/context"
 	"github.com/go-enjin/be/pkg/feature"
+	"github.com/go-enjin/be/pkg/fs"
+	"github.com/go-enjin/be/pkg/indexing"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
 	"github.com/go-enjin/be/pkg/page"
-	"github.com/go-enjin/be/pkg/pagecache"
 	"github.com/go-enjin/be/pkg/regexps"
 	"github.com/go-enjin/be/pkg/request/argv"
 	"github.com/go-enjin/be/pkg/theme"
@@ -50,29 +51,27 @@ var (
 const Tag feature.Tag = "PagesQuoteBuild"
 
 type Feature interface {
-	feature.Middleware
+	feature.Feature
+	feature.UseMiddleware
 	feature.PageTypeProcessor
-	pagecache.PageIndexFeature
+	indexing.PageIndexFeature
+	feature.PageContextModifier
 }
 
 type CFeature struct {
-	feature.CMiddleware
+	feature.CFeature
 
-	cli   *cli.Context
-	enjin feature.Internals
-
-	kwp   pagecache.KeywordProvider
+	kwp   indexing.KeywordProvider
 	theme *theme.Theme
 
-	knownWords  []string
-	lookupWords map[string]int
-	knownPaths  map[string][]int
-	lookupStubs map[int]*pagecache.Stub
+	knownWords     []string
+	lookupWords    map[string]int
+	lookupUnquoted map[int]int
+	knownPaths     map[string][]int
+	lookupStubs    map[int]*fs.PageStub
 
 	lastStubIdx       int
 	lastKnownWordsIdx int
-
-	sync.RWMutex
 }
 
 type MakeFeature interface {
@@ -80,8 +79,13 @@ type MakeFeature interface {
 }
 
 func New() MakeFeature {
+	return NewTagged(Tag)
+}
+
+func NewTagged(tag feature.Tag) MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.FeatureTag = tag
 	return f
 }
 
@@ -90,27 +94,23 @@ func (f *CFeature) Make() Feature {
 }
 
 func (f *CFeature) Init(this interface{}) {
-	f.CMiddleware.Init(this)
+	f.CFeature.Init(this)
 	f.kwp = nil
 	f.knownPaths = make(map[string][]int)
-	f.lookupStubs = make(map[int]*pagecache.Stub)
+	f.lookupStubs = make(map[int]*fs.PageStub)
 	f.lookupWords = make(map[string]int)
-}
-
-func (f *CFeature) Tag() (tag feature.Tag) {
-	tag = Tag
-	return
+	f.lookupUnquoted = make(map[int]int)
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {
-	f.enjin = enjin
-	if t, err := f.enjin.GetTheme(); err != nil {
+	f.CFeature.Setup(enjin)
+	if t, err := f.Enjin.GetTheme(); err != nil {
 		log.FatalF("error getting enjin theme: %v", err)
 	} else {
 		f.theme = t
 	}
-	for _, feat := range f.enjin.Features() {
-		if kwp, ok := feat.(pagecache.KeywordProvider); ok {
+	for _, feat := range f.Enjin.Features() {
+		if kwp, ok := feat.(indexing.KeywordProvider); ok {
 			f.kwp = kwp
 			break
 		}
@@ -121,7 +121,7 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 }
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
-	f.cli = ctx
+	err = f.CFeature.Startup(ctx)
 	return
 }
 
@@ -183,23 +183,23 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 	case "/b", "/b/":
 		reqArgv := argv.DecodeHttpRequest(r)
 		reqArgv.Path = "/build/"
-		f.enjin.ServeRedirect(reqArgv.String(), w, r)
+		f.Enjin.ServeRedirect(reqArgv.String(), w, r)
 		processed = true
 		return
 	}
 	if RxPagePath.MatchString(r.URL.Path) {
-		if buildPage := f.enjin.FindPage(f.enjin.SiteDefaultLanguage(), "!b/{key}"); buildPage != nil {
+		if buildPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!b/{key}"); buildPage != nil {
 			reqArgv := argv.DecodeHttpRequest(r)
 			m := RxPagePath.FindAllStringSubmatch(r.URL.Path, 1)
 			requestedPath := m[0][1]
 			buildingPath := strings.ToLower(requestedPath)
 
-			log.WarnF("hit: %v", m)
+			//log.WarnF("hit: %v", m)
 
 			if v, err := url.PathUnescape(buildingPath); err != nil {
 				reqArgv.Path = "/build/"
 				log.WarnF("redirecting %v due to error unescaping url path: %v", reqArgv.Path, err)
-				f.enjin.ServeRedirect(reqArgv.String(), w, r)
+				f.Enjin.ServeRedirect(reqArgv.String(), w, r)
 				processed = true
 				return
 			} else {
@@ -210,7 +210,12 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			var rebuiltPath, indexPath, builtSentence string
 			buildPathWords := strings.Split(buildingPath, "-")
 			for idx, word := range buildPathWords {
+
 				if v, ok := f.lookupWords[word]; ok {
+					if original, ok := f.lookupUnquoted[v]; ok {
+						word = f.knownWords[original]
+						v = original
+					}
 					if idx > 0 {
 						rebuiltPath += "-"
 						builtSentence += " "
@@ -226,7 +231,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 				} else {
 					reqArgv.Path = "/b/" + rebuiltPath
 					log.WarnF("redirecting %v due to invalid word requested: \"%v\"", reqArgv.Path, word)
-					f.enjin.ServeRedirect(reqArgv.String(), w, r)
+					f.Enjin.ServeRedirect(reqArgv.String(), w, r)
 					processed = true
 					return
 				}
@@ -275,7 +280,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			buildPage.Context.SetSpecific("NumNextWordGroups", len(nextWordsGrouped))
 			buildPage.Context.SetSpecific("BuiltQuotes", builtQuotes)
 			buildPage.Context.SetSpecific("NumBuiltQuotes", numBuiltQuotes)
-			if err := f.enjin.ServePage(buildPage, w, r); err != nil {
+			if err := f.Enjin.ServePage(buildPage, w, r); err != nil {
 				log.ErrorF("error serving words listing page: %v", err)
 			} else {
 				processed = true
@@ -292,7 +297,7 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 		m := RxGroupPath.FindAllStringSubmatch(r.URL.Path, 1)
 		groupChar := strings.ToLower(m[0][1])
 		// log.WarnF("hit words group: %v", groupChar)
-		if buildingPage := f.enjin.FindPage(f.enjin.SiteDefaultLanguage(), "!build/{key}"); buildingPage != nil {
+		if buildingPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!build/{key}"); buildingPage != nil {
 
 			// first words starting with groupChar...
 			firstWords := f.getFirstWordsStartingWith(groupChar[0])
@@ -326,7 +331,7 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 			buildingPage.Context.SetSpecific("FirstWordGroups", firstWordGroups)
 			// buildingPage.Context.SetSpecific("TopicCharacter", groupChar)
 			// buildingPage.Context.SetSpecific("TotalNumTopics", totalNumWords)
-			if err := f.enjin.ServePage(buildingPage, w, r); err != nil {
+			if err := f.Enjin.ServePage(buildingPage, w, r); err != nil {
 				log.ErrorF("error serving words listing page: %v", err)
 			} else {
 				processed = true
@@ -378,18 +383,14 @@ func (f *CFeature) ProcessBuildingPageType(r *http.Request, p *page.Page) (pg *p
 func (f *CFeature) parseContentKeywords(content string) (keywords []string) {
 	for _, keyword := range regexps.RxKeywords.FindAllString(content, -1) {
 		keyword = strings.ToLower(keyword)
-		// keywords = append(keywords, keyword)
 		if parts := strings.Split(keyword, "-"); len(parts) > 0 {
 			keywords = append(keywords, parts...)
-			// for _, part := range parts {
-			// 	keywords = append(keywords, part)
-			// }
 		}
 	}
 	return
 }
 
-func (f *CFeature) AddToIndex(stub *pagecache.Stub, p *page.Page) (err error) {
+func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 
 	if p.Type != "quote" {
 		return
@@ -401,21 +402,42 @@ func (f *CFeature) AddToIndex(stub *pagecache.Stub, p *page.Page) (err error) {
 	f.lastStubIdx += 1 // from -1, first key is 0
 	f.lookupStubs[f.lastStubIdx] = stub
 
-	var path string
-	foundWords := f.parseContentKeywords(p.Content)
-	for idx, keyword := range foundWords {
+	addLookupWord := func(keyword string) {
 		if _, exists := f.lookupWords[keyword]; !exists {
 			f.knownWords = append(f.knownWords, keyword)
 			f.lastKnownWordsIdx = len(f.knownWords) - 1
 			f.lookupWords[keyword] = f.lastKnownWordsIdx
 		}
+	}
+
+	var path string
+	foundWords := f.parseContentKeywords(p.Content)
+	for idx, keyword := range foundWords {
+		addLookupWord(keyword)
 		if idx > 0 {
 			path += "-"
 		}
 		path += strconv.Itoa(f.lookupWords[keyword])
 	}
-
 	f.knownPaths[path] = append(f.knownPaths[path], f.lastStubIdx)
+
+	var unqPath string
+	for idx, keyword := range foundWords {
+		if idx > 0 {
+			unqPath += "-"
+		}
+		if unquoted := strings.ReplaceAll(keyword, "'", "_"); keyword != unquoted {
+			addLookupWord(unquoted)
+			f.lookupUnquoted[f.lookupWords[unquoted]] = f.lookupWords[keyword]
+			unqPath += strconv.Itoa(f.lookupWords[unquoted])
+		} else {
+			unqPath += strconv.Itoa(f.lookupWords[keyword])
+		}
+	}
+	if unqPath != path {
+		f.knownPaths[unqPath] = append(f.knownPaths[unqPath], f.lastStubIdx)
+	}
+
 	return
 }
 
@@ -448,6 +470,9 @@ func (f *CFeature) getFirstWordsStartingWith(prefix uint8) (words []string) {
 		m := RxFirstWidInPath.FindAllString(key, 1)
 		wid, _ := strconv.Atoi(m[0])
 		if wid >= 0 && wid < len(f.knownWords) {
+			if v, ok := f.lookupUnquoted[wid]; ok {
+				wid = v
+			}
 			word := f.knownWords[wid]
 			if word[0] == prefix {
 				cache[word] = true
@@ -474,6 +499,9 @@ func (f *CFeature) getNextWords(indexPath string) (words []string) {
 					if wid, err := strconv.Atoi(wids[0]); err != nil {
 						log.ErrorF("error converting wid to int: \"%v\" - %v", wids[0], err)
 					} else if wid >= 0 && wid <= f.lastKnownWordsIdx {
+						if v, ok := f.lookupUnquoted[wid]; ok {
+							wid = v
+						}
 						word := f.knownWords[wid]
 						foundWords[word] = true
 						// log.WarnF("suffix=%v, path=%v, prefix=%v - word: %v", suffix, path, prefixPath, word)
@@ -517,7 +545,7 @@ func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote)
 	for idx, _ := range stubsLookup {
 		if idx >= 0 && idx <= f.lastStubIdx {
 			stub := f.lookupStubs[idx]
-			if pg, err := stub.Make(f.theme); err != nil {
+			if pg, err := page.NewFromPageStub(stub, f.theme); err != nil {
 				log.ErrorF("error making page from cache: %v - %v", stub.Source, err)
 			} else if hash, ok := pg.Context.Get("QuoteHash").(string); ok {
 				builtQuotes = append(builtQuotes, &quote.Quote{

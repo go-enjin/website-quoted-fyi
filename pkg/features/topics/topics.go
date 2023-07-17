@@ -21,7 +21,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/iancoleman/strcase"
 	"github.com/maruel/natural"
@@ -44,17 +43,13 @@ var (
 const Tag feature.Tag = "PagesQuoteTopics"
 
 type Feature interface {
-	feature.Middleware
+	feature.Feature
+	feature.UseMiddleware
 	feature.PageTypeProcessor
 }
 
 type CFeature struct {
-	feature.CMiddleware
-
-	cli   *cli.Context
-	enjin feature.Internals
-
-	sync.RWMutex
+	feature.CFeature
 }
 
 type MakeFeature interface {
@@ -64,6 +59,7 @@ type MakeFeature interface {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.FeatureTag = Tag
 	return f
 }
 
@@ -72,20 +68,15 @@ func (f *CFeature) Make() Feature {
 }
 
 func (f *CFeature) Init(this interface{}) {
-	f.CMiddleware.Init(this)
-}
-
-func (f *CFeature) Tag() (tag feature.Tag) {
-	tag = Tag
-	return
+	f.CFeature.Init(this)
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {
-	f.enjin = enjin
+	f.CFeature.Setup(enjin)
 }
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
-	f.cli = ctx
+	err = f.CFeature.Startup(ctx)
 	return
 }
 
@@ -113,7 +104,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 	case "/t", "/t/":
 		reqArgv := argv.DecodeHttpRequest(r)
 		reqArgv.Path = "/topics/"
-		f.enjin.ServeRedirect(reqArgv.String(), w, r)
+		f.Enjin.ServeRedirect(reqArgv.String(), w, r)
 		processed = true
 		return
 	}
@@ -124,7 +115,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 		topicKey := strcase.ToSnake(topic)
 		// log.WarnF("hit topic page: %v", topic)
 
-		selectedQuotes := f.enjin.MatchQL(fmt.Sprintf(`(.QuoteCategoryKeys =~ "%v")`, topicKey))
+		selectedQuotes := f.Enjin.MatchQL(fmt.Sprintf(`(.QuoteCategoryKeys =~ "%v")`, topicKey))
 		// log.WarnF("selected topics: %v", selectedQuotes)
 
 		authorLookup := make(map[string][]*quote.Quote)
@@ -163,14 +154,14 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			currentAuthorGroup = nil
 		}
 
-		if topicPage := f.enjin.FindPage(f.enjin.SiteDefaultLanguage(), "!t/{key}"); topicPage != nil {
+		if topicPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!t/{key}"); topicPage != nil {
 			topicPage.SetSlugUrl("/t/" + topic)
 			topicPage.Context.SetSpecific("Title", "Quoted.FYI: topic "+topic)
 			topicPage.Context.SetSpecific("Topic", topic)
 			topicPage.Context.SetSpecific("TotalQuotes", len(selectedQuotes))
 			topicPage.Context.SetSpecific("TotalAuthors", len(authorLookup))
 			topicPage.Context.SetSpecific("TopicAuthors", topicAuthors)
-			if err := f.enjin.ServePage(topicPage, w, r); err != nil {
+			if err := f.Enjin.ServePage(topicPage, w, r); err != nil {
 				log.ErrorF("error serving topics listing page: %v", err)
 			} else {
 				processed = true
@@ -187,8 +178,8 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 		m := RxGroupPath.FindAllStringSubmatch(r.URL.Path, 1)
 		groupChar := strings.ToLower(m[0][1])
 		// log.WarnF("hit topics group: %v", groupChar)
-		// results := f.enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
-		results := f.enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
+		// results := f.Enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
+		results := f.Enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
 		// log.WarnF("results: %#v", results)
 		var topics, topicLetters []string
 		var totalNumTopics int
@@ -233,7 +224,7 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 			topicGroups = append(topicGroups, topicLookup[key])
 		}
 
-		if listingPage := f.enjin.FindPage(f.enjin.SiteDefaultLanguage(), "!topics/{key}"); listingPage != nil {
+		if listingPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!topics/{key}"); listingPage != nil {
 			listingPage.SetSlugUrl("/topics/" + groupChar)
 			listingPage.Context.SetSpecific("Topics", topics)
 			listingPage.Context.SetSpecific("TopicLetters", topicLetters)
@@ -241,7 +232,7 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 			listingPage.Context.SetSpecific("TopicGroups", topicGroups)
 			listingPage.Context.SetSpecific("TopicCharacter", groupChar)
 			listingPage.Context.SetSpecific("TotalNumTopics", totalNumTopics)
-			if err := f.enjin.ServePage(listingPage, w, r); err != nil {
+			if err := f.Enjin.ServePage(listingPage, w, r); err != nil {
 				log.ErrorF("error serving topics listing page: %v", err)
 			} else {
 				processed = true

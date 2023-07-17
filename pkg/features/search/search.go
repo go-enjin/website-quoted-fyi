@@ -15,12 +15,11 @@
 package search
 
 import (
-	"sync"
-
 	"github.com/blevesearch/bleve/v2"
 	"github.com/iancoleman/strcase"
 	"github.com/urfave/cli/v2"
 
+	"github.com/go-enjin/be/features/pages/search"
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
@@ -37,15 +36,11 @@ const Tag feature.Tag = "SearchQuoted"
 
 type Feature interface {
 	feature.Feature
+	search.ResultsPostProcessor
 }
 
 type CFeature struct {
 	feature.CFeature
-
-	cli   *cli.Context
-	enjin feature.Internals
-
-	sync.RWMutex
 }
 
 type MakeFeature interface {
@@ -55,6 +50,7 @@ type MakeFeature interface {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.FeatureTag = Tag
 	return f
 }
 
@@ -66,17 +62,12 @@ func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 }
 
-func (f *CFeature) Tag() (tag feature.Tag) {
-	tag = Tag
-	return
-}
-
 func (f *CFeature) Setup(enjin feature.Internals) {
-	f.enjin = enjin
+	f.CFeature.Setup(enjin)
 }
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
-	f.cli = ctx
+	err = f.CFeature.Startup(ctx)
 	return
 }
 
@@ -89,14 +80,14 @@ func (f *CFeature) SearchResultsPostProcess(p *page.Page) {
 	}
 	p.Context.SetSpecific("Title", p.Title)
 
-	langTag := f.enjin.SiteDefaultLanguage()
+	langTag := f.Enjin.SiteDefaultLanguage()
 	if results, ok := p.Context.Get("SiteSearchResults").(*bleve.SearchResult); ok {
 
 		authorLookup := make(map[string][]*quote.Quote)
 
 		// found := make(map[string]*page.Page)
 		for _, hit := range results.Hits {
-			if pg := f.enjin.FindPage(langTag, hit.ID); pg != nil {
+			if pg := f.Enjin.FindPage(langTag, hit.ID); pg != nil {
 				if pg.Type != "quote" {
 					continue
 				}

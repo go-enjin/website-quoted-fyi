@@ -19,38 +19,32 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 
 	"github.com/iancoleman/strcase"
 	"github.com/urfave/cli/v2"
 
 	"github.com/go-enjin/be/pkg/feature"
+	"github.com/go-enjin/be/pkg/indexing"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/page"
-	"github.com/go-enjin/be/pkg/pagecache"
 )
 
 var (
-	_ Feature                   = (*CFeature)(nil)
-	_ MakeFeature               = (*CFeature)(nil)
-	_ feature.PageTypeProcessor = (*CFeature)(nil)
+	_ Feature     = (*CFeature)(nil)
+	_ MakeFeature = (*CFeature)(nil)
 )
 
 const Tag feature.Tag = "PagesRandom"
 
 type Feature interface {
 	feature.Feature
+	feature.PageTypeProcessor
 }
 
 type CFeature struct {
 	feature.CFeature
 
-	cli   *cli.Context
-	enjin feature.Internals
-
-	kwp pagecache.KeywordProvider
-
-	sync.RWMutex
+	kwp indexing.KeywordProvider
 }
 
 type MakeFeature interface {
@@ -60,6 +54,7 @@ type MakeFeature interface {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.FeatureTag = Tag
 	return f
 }
 
@@ -71,16 +66,11 @@ func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 }
 
-func (f *CFeature) Tag() (tag feature.Tag) {
-	tag = Tag
-	return
-}
-
 func (f *CFeature) Setup(enjin feature.Internals) {
-	f.enjin = enjin
+	f.CFeature.Setup(enjin)
 
-	for _, feat := range f.enjin.Features() {
-		if kwp, ok := feat.(pagecache.KeywordProvider); ok {
+	for _, feat := range f.Enjin.Features() {
+		if kwp, ok := feat.(indexing.KeywordProvider); ok {
 			f.kwp = kwp
 			break
 		}
@@ -88,7 +78,7 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 }
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
-	f.cli = ctx
+	err = f.CFeature.Startup(ctx)
 	return
 }
 
@@ -114,9 +104,10 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 				p.Context.SetSpecific("MetaRefresh", "5; url=/t/"+url.PathEscape(topic))
 			case "q", "quote":
 				quoteUrl := f.getRandomQuoteUrl()
-				if quotePg := f.enjin.FindPage(f.enjin.SiteDefaultLanguage(), quoteUrl); quotePg != nil {
+				if quotePg := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), quoteUrl); quotePg != nil {
 					p.Context.SetSpecific("QuoteUrl", quotePg.Url)
-					p.Context.SetSpecific("QuoteHash", quotePg.Context.Get("QuoteHash").(string))
+					quoteHash, _ := quotePg.Context.Get("QuoteHash").(string)
+					p.Context.SetSpecific("QuoteHash", quoteHash)
 					p.Context.SetSpecific("MetaRefresh", "5; url="+quotePg.Url)
 				} else {
 					log.ErrorF("error finding page by random quote url: %v", quoteUrl)
@@ -141,7 +132,7 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 }
 
 func (f *CFeature) getRandomAuthor() (topic string) {
-	results := f.enjin.SelectQL(`SELECT DISTINCT .QuoteAuthor`)
+	results := f.Enjin.SelectQL(`SELECT DISTINCT .QuoteAuthor`)
 	if v, ok := results["QuoteAuthor"]; ok {
 		if vlist, ok := v.([]interface{}); ok {
 			idx := rand.Intn(len(vlist))
@@ -154,7 +145,7 @@ func (f *CFeature) getRandomAuthor() (topic string) {
 }
 
 func (f *CFeature) getRandomTopic() (topic string) {
-	results := f.enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
+	results := f.Enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
 	if v, ok := results["QuoteCategories"]; ok {
 		if vlist, ok := v.([]interface{}); ok {
 			idx := rand.Intn(len(vlist))
@@ -167,8 +158,9 @@ func (f *CFeature) getRandomTopic() (topic string) {
 }
 
 func (f *CFeature) getRandomQuoteUrl() (quoteUrl string) {
+	// TODO: optimize getRandomQuoteUrl
 	getRandomUrl := func() (grUrl string) {
-		selected := f.enjin.SelectQL(`SELECT RANDOM .Url`)
+		selected := f.Enjin.SelectQL(`SELECT RANDOM .Url`)
 		if v, ok := selected["Url"]; ok {
 			if vs, ok := v.(string); ok {
 				grUrl = vs
