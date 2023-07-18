@@ -9,7 +9,7 @@ sitemap-ignored = "true"
 <article class="list">
     <header>
         <h2>the topic of <a href="/t/{{ .Topic }}">{{ .Topic }}</a></h2>
-        <h3>has {{ .TotalQuotes | intcomma }} quotes from {{ .TotalAuthors }} authors</h3>
+        <h3>has {{ .TotalQuotes | intcomma }} quotes from {{ .TotalAuthors | intcomma }} authors</h3>
         {{- if gt (len .TopicAuthors) 0 }}
         <aside>
             <div>[scroll to things starting with...]</div>
