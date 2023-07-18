@@ -22,10 +22,10 @@ import (
 
 	"github.com/go-enjin/golang-org-x-text/language"
 
+	"github.com/go-enjin/be/drivers/kvs/gocache"
 	semantic "github.com/go-enjin/semantic-enjin-theme"
 
 	"github.com/go-enjin/be"
-	"github.com/go-enjin/be/drivers/kvs/gocache"
 	"github.com/go-enjin/be/drivers/kws"
 	"github.com/go-enjin/be/features/fs/content"
 	"github.com/go-enjin/be/features/log/papertrail"
@@ -106,16 +106,16 @@ func main() {
 			userbase.NewAction("fs-content", "view", "page"),
 			userbase.NewAction("fs-content-quotes", "view", "page"),
 		).
-		//AddFeature(gocache.NewTagged(gPqlKwsFeature).AddMemoryCache(gPqlKwsCache).Make()).
-		//AddFeature(gocache.NewTagged(gKvsFeature).AddMemoryCache(gKvsCache).Make()).
-		//AddFeature(gocache.NewTagged(gPqlKwsFeature).AddRistrettoCache(gPqlKwsCache).Make()).
-		//AddFeature(gocache.NewTagged(gKvsFeature).AddRistrettoCache(gKvsCache).Make()).
-		AddFeature(gocache.NewTagged(gPqlKwsFeature).AddMemShardCache(gPqlKwsCache).Make()).
-		AddFeature(gocache.NewTagged(gKvsFeature).AddMemShardCache(gKvsCache).Make()).
-		//AddFeature(gocache.NewTagged(gPqlKwsFeature).AddBigCache(gPqlKwsCache).Make()).
-		//AddFeature(gocache.NewTagged(gKvsFeature).AddBigCache(gKvsCache).Make()).
+		AddFeature(gocache.NewTagged(gPqlKwsFeature).AddMemoryCache(gPqlKwsCache).Make()).
+		AddFeature(gocache.NewTagged(gKvsFeature).AddMemoryCache(gKvsCache).Make()).
 		//AddFeature(gocache.NewTagged(gPqlKwsFeature).AddIMCacheCache(gPqlKwsCache).Make()).
 		//AddFeature(gocache.NewTagged(gKvsFeature).AddIMCacheCache(gKvsCache).Make()).
+		//AddFeature(gocache.NewTagged(gPqlKwsFeature).AddMemShardCache(gPqlKwsCache).Make()).
+		//AddFeature(gocache.NewTagged(gKvsFeature).AddMemShardCache(gKvsCache).Make()).
+		//AddFeature(gocache.NewTagged(gPqlKwsFeature).AddBigCache(gPqlKwsCache).Make()).
+		//AddFeature(gocache.NewTagged(gKvsFeature).AddBigCache(gKvsCache).Make()).
+		//AddFeature(gocache.NewTagged(gPqlKwsFeature).AddRistrettoCache(gPqlKwsCache).Make()).
+		//AddFeature(gocache.NewTagged(gKvsFeature).AddRistrettoCache(gKvsCache).Make()).
 		AddFeature(pql.NewTagged(gPqlFeature).
 			IncludeContextKeys("QuoteAuthor", "QuoteAuthorKey", "QuoteCategories", "QuoteCategoryKeys", "QuoteShasum", "QuoteHash").
 			SetKeyValueCache(gPqlKwsFeature, gPqlKwsCache).
@@ -150,6 +150,7 @@ func main() {
 			//MountLocalPath("/q/", "quotes").
 			AddToIndexProviders(gPqlFeature, gBuildQuotesFeature, gAuthorsFeature).
 			AddToSearchProviders(gKwsFeature).
+			SetStartupGC(25). // aggressive due to scale of content and resource limitations on production
 			Make(),
 		)
 	if err := enjin.Build().Run(os.Args); err != nil {
