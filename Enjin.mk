@@ -30,7 +30,7 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.2.9
+ENJIN_MK_VERSION = v0.2.10
 
 SHELL = /bin/bash
 
@@ -988,15 +988,17 @@ stop:
 				echo "#######################################################"; \
 				echo "# workdir: $${RP_WD}"; \
 				echo "# process: $${LINE}"; \
+				if [ -z "${STOP_PROFILING}" ]; then \
 				echo "# pidtree:"; \
-				for pid in $${RP_TREE}; do \
-						INFO=$$(\
-							COLUMNS=25 \
-							ps -o command= -p $${pid} \
-								| perl -pe 's!(^\s*|\s*$$)!!g;$$v=$$_;$$_="";print $$v;print "..." unless (length($$v) <= 24);' \
-						); \
-						echo "#          $${pid} - $${INFO}"; \
-				done; \
+					for pid in $${RP_TREE}; do \
+							INFO=$$(\
+								COLUMNS=25 \
+								ps -o command= -p $${pid} \
+									| perl -pe 's!(^\s*|\s*$$)!!g;$$v=$$_;$$_="";print $$v;print "..." unless (length($$v) <= 24);' \
+							); \
+							echo "#          $${pid} - $${INFO}"; \
+					done; \
+				fi; \
 				echo "#"; \
 				if [ -z "${STOP_ALL}" -a -n "$${RP_WD}" -a "$${RP_WD}" != "$${PWD}" ]; then \
 					echo "# skipped (not this path: $${PWD})"; \
@@ -1013,10 +1015,15 @@ stop:
 				if [ $${rv} -eq 0 ]; then \
 					[ -n "$${ANSWER}" ] && echo ""; \
 					if [ -z "$${ANSWER}" -o "$${ANSWER}" == "y" -o "$${ANSWER}" == "Y" ]; then \
-						for pid in $${RP_TREE}; do \
-							${CMD} kill -KILL $${pid} 2> /dev/null; \
-						done; \
-						echo "# terminated: $${RP_TREE}"; \
+						if [ -z "${STOP_PROFILING}" ]; then \
+							for pid in $${RP_TREE}; do \
+								${CMD} kill -KILL $${pid} 2> /dev/null; \
+							done; \
+							echo "# terminated: $${RP_TREE}"; \
+						else \
+							${CMD} kill -TERM $${RP} 2> /dev/null; \
+							echo "# terminated: $${RP}"; \
+						fi; \
 					fi; \
 				else \
 					echo "# stop target aborted"; \
@@ -1034,6 +1041,9 @@ force-stop: stop
 force-stop-all: STOP_ALL=true
 force-stop-all: FORCE_STOP=true
 force-stop-all: stop
+
+stop-profiling: STOP_PROFILING=true
+stop-profiling: stop
 
 profile.mem: export BE_PROFILE_MODE=mem
 profile.mem: export BE_PROFILE_PATH=.
