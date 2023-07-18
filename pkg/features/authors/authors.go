@@ -24,6 +24,8 @@ import (
 	"github.com/maruel/natural"
 	"github.com/urfave/cli/v2"
 
+	"github.com/go-enjin/golang-org-x-text/language"
+
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/fs"
 	"github.com/go-enjin/be/pkg/indexing"
@@ -32,7 +34,6 @@ import (
 	"github.com/go-enjin/be/pkg/page"
 	"github.com/go-enjin/be/pkg/request/argv"
 	beStrings "github.com/go-enjin/be/pkg/strings"
-	"github.com/go-enjin/golang-org-x-text/language"
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
@@ -41,20 +42,13 @@ var (
 	_ MakeFeature = (*CFeature)(nil)
 )
 
-const Tag feature.Tag = "PagesQuoteAuthors"
+const Tag feature.Tag = "pages-quote-authors"
 
 type Feature interface {
 	feature.Feature
 	feature.UseMiddleware
 	feature.PageTypeProcessor
 	indexing.PageIndexFeature
-}
-
-// TODO: implement something better than f.Enjin.SelectQL
-
-type cAuthorEntry struct {
-	Name string
-	Key  string
 }
 
 type CFeature struct {
