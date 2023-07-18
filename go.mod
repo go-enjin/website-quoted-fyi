@@ -4,9 +4,9 @@ go 1.20
 
 require (
 	github.com/blevesearch/bleve/v2 v2.3.6
-	github.com/go-enjin/be v0.2.11
+	github.com/go-enjin/be v0.2.13
 	github.com/go-enjin/golang-org-x-text v0.7.1-enjin.0
-	github.com/go-enjin/semantic-enjin-theme v0.2.11
+	github.com/go-enjin/semantic-enjin-theme v0.2.13
 	github.com/iancoleman/strcase v0.2.0
 	github.com/maruel/natural v1.1.0
 	github.com/spkg/zipfs v0.7.1
@@ -83,7 +83,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
-	github.com/microcosm-cc/bluemonday v1.0.24 // indirect
+	github.com/microcosm-cc/bluemonday v1.0.25 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
@@ -107,12 +107,12 @@ require (
 	github.com/yookoala/gofast v0.7.0 // indirect
 	github.com/yookoala/realpath v1.0.0 // indirect
 	go.etcd.io/bbolt v1.3.7 // indirect
-	golang.org/x/crypto v0.8.0 // indirect
+	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9 // indirect
-	golang.org/x/net v0.10.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/term v0.8.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/net v0.12.0 // indirect
+	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/term v0.10.0 // indirect
+	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
