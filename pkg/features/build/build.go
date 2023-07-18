@@ -48,7 +48,7 @@ var (
 	_ MakeFeature = (*CFeature)(nil)
 )
 
-const Tag feature.Tag = "PagesQuoteBuild"
+const Tag feature.Tag = "pages-quote-build"
 
 type Feature interface {
 	feature.Feature
@@ -68,7 +68,7 @@ type CFeature struct {
 	lookupWords    map[string]int
 	lookupUnquoted map[int]int
 	knownPaths     map[string][]int
-	lookupStubs    map[int]*fs.PageStub
+	lookupStubs    map[int]string
 
 	lastStubIdx       int
 	lastKnownWordsIdx int
@@ -97,7 +97,7 @@ func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 	f.kwp = nil
 	f.knownPaths = make(map[string][]int)
-	f.lookupStubs = make(map[int]*fs.PageStub)
+	f.lookupStubs = make(map[int]string)
 	f.lookupWords = make(map[string]int)
 	f.lookupUnquoted = make(map[int]int)
 }
@@ -400,7 +400,7 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 	defer f.Unlock()
 
 	f.lastStubIdx += 1 // from -1, first key is 0
-	f.lookupStubs[f.lastStubIdx] = stub
+	f.lookupStubs[f.lastStubIdx] = stub.Shasum
 
 	addLookupWord := func(keyword string) {
 		if _, exists := f.lookupWords[keyword]; !exists {
@@ -544,16 +544,19 @@ func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote)
 	}
 	for idx, _ := range stubsLookup {
 		if idx >= 0 && idx <= f.lastStubIdx {
-			stub := f.lookupStubs[idx]
-			if pg, err := page.NewFromPageStub(stub, f.theme); err != nil {
-				log.ErrorF("error making page from cache: %v - %v", stub.Source, err)
-			} else if hash, ok := pg.Context.Get("QuoteHash").(string); ok {
-				builtQuotes = append(builtQuotes, &quote.Quote{
-					Url:  pg.Url,
-					Hash: hash,
-				})
+			if stub := f.Enjin.FindPageStub(f.lookupStubs[idx]); stub != nil {
+				if pg, err := page.NewFromPageStub(stub, f.theme); err != nil {
+					log.ErrorF("error making page from cache: %v - %v", stub.Source, err)
+				} else if hash, ok := pg.Context.Get("QuoteHash").(string); ok {
+					builtQuotes = append(builtQuotes, &quote.Quote{
+						Url:  pg.Url,
+						Hash: hash,
+					})
+				} else {
+					log.ErrorF("error page missing QuoteHash: %v", pg.Url)
+				}
 			} else {
-				log.ErrorF("error page missing QuoteHash: %v", pg.Url)
+				log.ErrorF("error finding page stub by shasum: %v", f.lookupStubs[idx])
 			}
 		} else {
 			log.WarnF("stub index out of bounds: %v [0-%v]", idx, f.lastStubIdx)
