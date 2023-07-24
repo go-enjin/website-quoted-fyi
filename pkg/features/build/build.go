@@ -15,7 +15,6 @@
 package build
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -38,6 +37,7 @@ import (
 	"github.com/go-enjin/be/pkg/regexps"
 	"github.com/go-enjin/be/pkg/request/argv"
 	"github.com/go-enjin/be/pkg/theme"
+
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
@@ -223,7 +223,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 					}
 					rebuiltPath += word
 					builtSentence += word
-					indexPath += fmt.Sprintf("%d", v)
+					indexPath += strconv.Itoa(v)
 					buildPathLinks = append(buildPathLinks, &quote.WordLink{
 						Path: rebuiltPath,
 						Word: word,
