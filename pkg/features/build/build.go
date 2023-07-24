@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/maruel/natural"
+	"github.com/puzpuzpuz/xsync/v2"
 	"github.com/urfave/cli/v2"
 
 	"github.com/go-enjin/golang-org-x-text/language"
@@ -64,11 +65,12 @@ type CFeature struct {
 	kwp   indexing.KeywordProvider
 	theme *theme.Theme
 
-	knownWords     []string
-	lookupWords    map[string]int
-	lookupUnquoted map[int]int
-	knownPaths     map[string][]int
-	lookupStubs    map[int]string
+	knownWords []string
+	knownStubs *xsync.MapOf[int, string]
+	knownPaths *xsync.MapOf[string, []int]
+
+	lookupWords    *xsync.MapOf[string, int]
+	lookupUnquoted *xsync.MapOf[int, int]
 
 	lastStubIdx       int
 	lastKnownWordsIdx int
@@ -96,10 +98,10 @@ func (f *CFeature) Make() Feature {
 func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 	f.kwp = nil
-	f.knownPaths = make(map[string][]int)
-	f.lookupStubs = make(map[int]string)
-	f.lookupWords = make(map[string]int)
-	f.lookupUnquoted = make(map[int]int)
+	f.knownStubs = xsync.NewIntegerMapOf[int, string]()
+	f.knownPaths = xsync.NewMapOf[[]int]()
+	f.lookupWords = xsync.NewMapOf[int]()
+	f.lookupUnquoted = xsync.NewIntegerMapOf[int, int]()
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {
@@ -152,8 +154,8 @@ func (f *CFeature) FilterPageContext(themeCtx, pageCtx context.Context, r *http.
 				keywords := regexps.RxKeywords.FindAllString(strings.ToLower(content), -1)
 				var swids []string
 				for _, word := range keywords {
-					if wid, ok := f.lookupWords[word]; ok {
-						swids = append(swids, fmt.Sprintf("%d", wid))
+					if wid, ok := f.lookupWords.Load(word); ok {
+						swids = append(swids, strconv.Itoa(wid))
 					}
 				}
 				for i := len(swids) - 1; i >= 0; i-- {
@@ -211,8 +213,8 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			buildPathWords := strings.Split(buildingPath, "-")
 			for idx, word := range buildPathWords {
 
-				if v, ok := f.lookupWords[word]; ok {
-					if original, ok := f.lookupUnquoted[v]; ok {
+				if v, ok := f.lookupWords.Load(word); ok {
+					if original, ok := f.lookupUnquoted.Load(v); ok {
 						word = f.knownWords[original]
 						v = original
 					}
@@ -400,13 +402,13 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 	defer f.Unlock()
 
 	f.lastStubIdx += 1 // from -1, first key is 0
-	f.lookupStubs[f.lastStubIdx] = stub.Shasum
+	f.knownStubs.Store(f.lastStubIdx, stub.Shasum)
 
 	addLookupWord := func(keyword string) {
-		if _, exists := f.lookupWords[keyword]; !exists {
+		if _, exists := f.lookupWords.Load(keyword); !exists {
 			f.knownWords = append(f.knownWords, keyword)
 			f.lastKnownWordsIdx = len(f.knownWords) - 1
-			f.lookupWords[keyword] = f.lastKnownWordsIdx
+			f.lookupWords.Store(keyword, f.lastKnownWordsIdx)
 		}
 	}
 
@@ -417,9 +419,11 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 		if idx > 0 {
 			path += "-"
 		}
-		path += strconv.Itoa(f.lookupWords[keyword])
+		wid, _ := f.lookupWords.Load(keyword)
+		path += strconv.Itoa(wid)
 	}
-	f.knownPaths[path] = append(f.knownPaths[path], f.lastStubIdx)
+	knownPaths, _ := f.knownPaths.Load(path)
+	f.knownPaths.Store(path, append(knownPaths, f.lastStubIdx))
 
 	var unqPath string
 	for idx, keyword := range foundWords {
@@ -428,14 +432,18 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 		}
 		if unquoted := strings.ReplaceAll(keyword, "'", "_"); keyword != unquoted {
 			addLookupWord(unquoted)
-			f.lookupUnquoted[f.lookupWords[unquoted]] = f.lookupWords[keyword]
-			unqPath += strconv.Itoa(f.lookupWords[unquoted])
+			widUnq, _ := f.lookupWords.Load(unquoted)
+			widKw, _ := f.lookupWords.Load(keyword)
+			f.lookupUnquoted.Store(widUnq, widKw)
+			unqPath += strconv.Itoa(widUnq)
 		} else {
-			unqPath += strconv.Itoa(f.lookupWords[keyword])
+			wid, _ := f.lookupWords.Load(keyword)
+			unqPath += strconv.Itoa(wid)
 		}
 	}
 	if unqPath != path {
-		f.knownPaths[unqPath] = append(f.knownPaths[unqPath], f.lastStubIdx)
+		unqPaths, _ := f.knownPaths.Load(unqPath)
+		f.knownPaths.Store(unqPath, append(unqPaths, f.lastStubIdx))
 	}
 
 	return
@@ -449,7 +457,7 @@ func (f *CFeature) getFirstWordFirstLetters() (letters []string) {
 	f.RLock()
 	defer f.RUnlock()
 	cache := make(map[string]bool)
-	for key, _ := range f.knownPaths {
+	f.knownPaths.Range(func(key string, value []int) bool {
 		m := RxFirstWidInPath.FindAllString(key, 1)
 		wid, _ := strconv.Atoi(m[0])
 		if wid >= 0 && wid < len(f.knownWords) {
@@ -457,7 +465,8 @@ func (f *CFeature) getFirstWordFirstLetters() (letters []string) {
 			letter := string(word[0])
 			cache[letter] = true
 		}
-	}
+		return true
+	})
 	letters = maps.SortedKeys(cache)
 	return
 }
@@ -466,11 +475,11 @@ func (f *CFeature) getFirstWordsStartingWith(prefix uint8) (words []string) {
 	f.RLock()
 	defer f.RUnlock()
 	cache := make(map[string]bool)
-	for key, _ := range f.knownPaths {
+	f.knownPaths.Range(func(key string, value []int) bool {
 		m := RxFirstWidInPath.FindAllString(key, 1)
 		wid, _ := strconv.Atoi(m[0])
 		if wid >= 0 && wid < len(f.knownWords) {
-			if v, ok := f.lookupUnquoted[wid]; ok {
+			if v, ok := f.lookupUnquoted.Load(wid); ok {
 				wid = v
 			}
 			word := f.knownWords[wid]
@@ -478,7 +487,8 @@ func (f *CFeature) getFirstWordsStartingWith(prefix uint8) (words []string) {
 				cache[word] = true
 			}
 		}
-	}
+		return true
+	})
 	words = maps.SortedKeys(cache)
 	return
 }
@@ -489,29 +499,30 @@ func (f *CFeature) getNextWords(indexPath string) (words []string) {
 	foundWords := make(map[string]bool)
 	indexPathLength := len(indexPath)
 	prefixPath := indexPath + "-"
-	for path, _ := range f.knownPaths {
-		if pathLength := len(path); pathLength > indexPathLength {
-			if path[:indexPathLength+1] == prefixPath {
-				suffix := path[indexPathLength+1:]
-				// log.WarnF("suffix=%v, path=%v, prefix=%v", suffix, path, prefixPath)
+	f.knownPaths.Range(func(key string, value []int) bool {
+		if pathLength := len(key); pathLength > indexPathLength {
+			if key[:indexPathLength+1] == prefixPath {
+				suffix := key[indexPathLength+1:]
+				// log.WarnF("suffix=%v, key=%v, prefix=%v", suffix, key, prefixPath)
 				wids := strings.Split(suffix, "-")
 				if len(wids) > 0 {
 					if wid, err := strconv.Atoi(wids[0]); err != nil {
 						log.ErrorF("error converting wid to int: \"%v\" - %v", wids[0], err)
 					} else if wid >= 0 && wid <= f.lastKnownWordsIdx {
-						if v, ok := f.lookupUnquoted[wid]; ok {
+						if v, ok := f.lookupUnquoted.Load(wid); ok {
 							wid = v
 						}
 						word := f.knownWords[wid]
 						foundWords[word] = true
-						// log.WarnF("suffix=%v, path=%v, prefix=%v - word: %v", suffix, path, prefixPath, word)
+						// log.WarnF("suffix=%v, key=%v, prefix=%v - word: %v", suffix, key, prefixPath, word)
 					} else {
 						log.ErrorF("wid out of range: %v [0-%v]", wid, f.lastKnownWordsIdx)
 					}
 				}
 			}
 		}
-	}
+		return true
+	})
 	words = maps.SortedKeys(foundWords)
 	// log.WarnF("got next words: index=\"%v\", numWords=%d", indexPath, len(words))
 	return
@@ -525,26 +536,35 @@ func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote)
 	reqPathLen := len(indexPath)
 	prefixPath := indexPath + "-"
 	prefixPathLen := reqPathLen + 1
-	for path, ids := range f.knownPaths {
-		if pathLen := len(path); pathLen >= reqPathLen {
+
+	var done bool
+	f.knownPaths.Range(func(key string, ids []int) bool {
+		if pathLen := len(key); pathLen >= reqPathLen {
 			switch {
-			case path == indexPath:
-			case pathLen >= prefixPathLen && path[:prefixPathLen] == prefixPath:
+			case key == indexPath:
+			case pathLen >= prefixPathLen && key[:prefixPathLen] == prefixPath:
 			default:
-				continue
+				return true
 			}
 			if stubCount += len(ids); stubCount > 25 {
-				return
+				done = true // early out
+				return false
 			}
-			// log.WarnF("found built quote:\nindexPath=%v\npath=%v\nids=%v", indexPath, path, ids)
+			// log.WarnF("found built quote:\nindexPath=%v\nkey=%v\nids=%v", indexPath, key, ids)
 			for _, id := range ids {
 				stubsLookup[id] = true
 			}
 		}
+		return true
+	})
+	if done {
+		return
 	}
+
 	for idx, _ := range stubsLookup {
 		if idx >= 0 && idx <= f.lastStubIdx {
-			if stub := f.Enjin.FindPageStub(f.lookupStubs[idx]); stub != nil {
+			shasum, _ := f.knownStubs.Load(idx)
+			if stub := f.Enjin.FindPageStub(shasum); stub != nil {
 				if pg, err := page.NewFromPageStub(stub, f.theme); err != nil {
 					log.ErrorF("error making page from cache: %v - %v", stub.Source, err)
 				} else if hash, ok := pg.Context.Get("QuoteHash").(string); ok {
@@ -556,7 +576,7 @@ func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote)
 					log.ErrorF("error page missing QuoteHash: %v", pg.Url)
 				}
 			} else {
-				log.ErrorF("error finding page stub by shasum: %v", f.lookupStubs[idx])
+				log.ErrorF("error finding page stub by shasum: %v", shasum)
 			}
 		} else {
 			log.WarnF("stub index out of bounds: %v [0-%v]", idx, f.lastStubIdx)
