@@ -454,8 +454,8 @@ func (f *CFeature) RemoveFromIndex(tag language.Tag, file string, shasum string)
 }
 
 func (f *CFeature) getFirstWordFirstLetters() (letters []string) {
-	f.RLock()
-	defer f.RUnlock()
+	//f.RLock()
+	//defer f.RUnlock()
 	cache := make(map[string]bool)
 	f.knownPaths.Range(func(key string, value []int) bool {
 		m := RxFirstWidInPath.FindAllString(key, 1)
@@ -472,8 +472,8 @@ func (f *CFeature) getFirstWordFirstLetters() (letters []string) {
 }
 
 func (f *CFeature) getFirstWordsStartingWith(prefix uint8) (words []string) {
-	f.RLock()
-	defer f.RUnlock()
+	//f.RLock()
+	//defer f.RUnlock()
 	cache := make(map[string]bool)
 	f.knownPaths.Range(func(key string, value []int) bool {
 		m := RxFirstWidInPath.FindAllString(key, 1)
@@ -494,8 +494,8 @@ func (f *CFeature) getFirstWordsStartingWith(prefix uint8) (words []string) {
 }
 
 func (f *CFeature) getNextWords(indexPath string) (words []string) {
-	f.RLock()
-	defer f.RUnlock()
+	//f.RLock()
+	//defer f.RUnlock()
 	foundWords := make(map[string]bool)
 	indexPathLength := len(indexPath)
 	prefixPath := indexPath + "-"
@@ -529,8 +529,8 @@ func (f *CFeature) getNextWords(indexPath string) (words []string) {
 }
 
 func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote) {
-	f.RLock()
-	defer f.RUnlock()
+	//f.RLock()
+	//defer f.RUnlock()
 	stubCount := 0
 	stubsLookup := make(map[int]bool)
 	reqPathLen := len(indexPath)
