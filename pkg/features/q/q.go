@@ -32,7 +32,7 @@ import (
 	"github.com/go-enjin/be/pkg/regexps"
 	beStrings "github.com/go-enjin/be/pkg/strings"
 	"github.com/go-enjin/be/pkg/theme"
-	"github.com/go-enjin/be/pkg/types/theme-types"
+	types "github.com/go-enjin/be/pkg/types/theme-types"
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
