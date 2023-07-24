@@ -49,6 +49,8 @@ SET_LOCAL_PATH := ../semantic-enjin-theme
 #GOXT_GO_PACKAGE = github.com/go-enjin/golang-org-x-text
 #GOXT_LOCAL_PATH = ../golang-org-x-text
 
+export GOGC=15
+
 include ./Enjin.mk
 
 export BE_BUNTDB_PATH ?= ./buntdb-indexing.db
