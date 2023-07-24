@@ -153,14 +153,14 @@ github.com/go-curses/term v1.2.2-gocurses.1 h1:wUi7qtaZQO9q7+YpX8nGBDoFJd7aWZeo2
 github.com/go-curses/term v1.2.2-gocurses.1/go.mod h1:ZuwRe9U+iLY2qTuhzg/kg0Pc9bZdfcJCtfHrjGvZtVA=
 github.com/go-curses/terminfo v1.0.0 h1:vU1G+oYsvSwmywZe6ZsoRQ8a8XDrzlM3rPeejUmpzc4=
 github.com/go-curses/terminfo v1.0.0/go.mod h1:3cAGarEfP6wdhHYmUI2xAx14cu+cfIIQYXehy2q/zUg=
-github.com/go-enjin/be v0.2.13 h1:230f9K92J+2Png0LycNSrjazUbt3ZGiD6ivtQSg6gDc=
-github.com/go-enjin/be v0.2.13/go.mod h1:hCmrOZfBYqAuSvWLvrwE0V6EutEYdt17rxHx/CY4fRY=
+github.com/go-enjin/be v0.2.14 h1:c2WzCU9fV6lXSjAkCRgKlhyeAZVdRaPYmbvMbC8B8RQ=
+github.com/go-enjin/be v0.2.14/go.mod h1:Hi3qvJmOnsZc3FNsk+nv2d4B/CNUQDMcewDSKJ8JMeI=
 github.com/go-enjin/github-com-djherbis-times v0.0.0-20221101184323-aeef8854ee8a h1:Qr7FpRTxEBnNJtyYj6TyVPs12bn45xSLFkygcSby1g4=
 github.com/go-enjin/github-com-djherbis-times v0.0.0-20221101184323-aeef8854ee8a/go.mod h1:hId0+St26leJQkTRaFYATZHMGja4wrv0hzf5SwKs3hA=
 github.com/go-enjin/golang-org-x-text v0.7.1-enjin.0 h1:Ze9XonV/P8WlQCqXnPtzXJImR34z58P/XyFnyUtr0fI=
 github.com/go-enjin/golang-org-x-text v0.7.1-enjin.0/go.mod h1:drs2gdlsfKSimrkS5j//UTGEMEWcLyX9M3frtW/dP+k=
-github.com/go-enjin/semantic-enjin-theme v0.2.13 h1:5bI5v/6S5pkNTo35QsfUsjHnA+T+Irl3GR1i4gNFsy8=
-github.com/go-enjin/semantic-enjin-theme v0.2.13/go.mod h1:eOuQiwSUZNXrcQ7/Lz95lbfaxk+Z8INHLI07zrMvEMk=
+github.com/go-enjin/semantic-enjin-theme v0.2.14 h1:7FT8ToFDwuCNphDxHSS86EVpz5nOoZH6MOAFAk8gclA=
+github.com/go-enjin/semantic-enjin-theme v0.2.14/go.mod h1:mzBRn51MLd2/7lTBc0ib8UL0EJ5UsdWYWNSFs035uSw=
 github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9AVAgeJqvqgH9Q5CA+iKCZ2gyEVpxRU=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200222043503-6f7a984d4dc4/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
@@ -370,6 +370,8 @@ github.com/prometheus/procfs v0.6.0/go.mod h1:cz+aTbrPOrUb4q7XlbU9ygM+/jj0fzG6c1
 github.com/prometheus/procfs v0.7.3/go.mod h1:cz+aTbrPOrUb4q7XlbU9ygM+/jj0fzG6c1xBZuNvfVA=
 github.com/prometheus/procfs v0.8.0 h1:ODq8ZFEaYeCaZOJlZZdJA2AbQR98dSHSM1KW/You5mo=
 github.com/prometheus/procfs v0.8.0/go.mod h1:z7EfXMXOkbkqb9IINtpCn86r/to3BnA0uaxHdg830/4=
+github.com/puzpuzpuz/xsync/v2 v2.4.1 h1:aGdE1C/HaR/QC6YAFdtZXi60Df8/qBIrs8PKrzkItcM=
+github.com/puzpuzpuz/xsync/v2 v2.4.1/go.mod h1:gD2H2krq/w52MfPLE+Uy64TzJDVY7lP2znR9qmR35kU=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.2 h1:YwD0ulJSJytLpiaWua0sBDusfsCZohxjxzVTYjwxfV8=
 github.com/rivo/uniseg v0.4.2/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
