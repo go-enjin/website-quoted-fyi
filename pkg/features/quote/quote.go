@@ -28,7 +28,7 @@ var (
 	_ MakeFeature = (*CFeature)(nil)
 )
 
-const Tag feature.Tag = "PagesQuote"
+const Tag feature.Tag = "quote-page-type"
 
 type Feature interface {
 	feature.Feature

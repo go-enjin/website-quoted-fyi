@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	Tag feature.Tag = "QuotePageFormat"
+	Tag feature.Tag = "quote-page-format"
 )
 
 var (

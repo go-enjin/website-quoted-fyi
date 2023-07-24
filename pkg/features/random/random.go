@@ -34,7 +34,7 @@ var (
 	_ MakeFeature = (*CFeature)(nil)
 )
 
-const Tag feature.Tag = "PagesRandom"
+const Tag feature.Tag = "random-pages"
 
 type Feature interface {
 	feature.Feature

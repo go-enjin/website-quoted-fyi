@@ -32,7 +32,7 @@ var (
 	_ MakeFeature = (*CFeature)(nil)
 )
 
-const Tag feature.Tag = "SearchQuoted"
+const Tag feature.Tag = "search-quoted"
 
 type Feature interface {
 	feature.Feature
