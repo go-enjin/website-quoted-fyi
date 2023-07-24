@@ -180,8 +180,15 @@ func (f *CFeature) getRandomQuoteUrl() (quoteUrl string) {
 }
 
 func (f *CFeature) getRandomWord() (word string) {
-	keywords := f.kwp.KnownKeywords()
-	idx := rand.Intn(len(keywords))
-	word = keywords[idx]
+	idx := rand.Intn(f.kwp.Size())
+	counter := 0
+	f.kwp.Range(func(keyword string, _ []string) (proceed bool) {
+		if counter < idx {
+			counter += 1
+			return true
+		}
+		word = keyword
+		return false
+	})
 	return
 }
