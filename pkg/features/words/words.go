@@ -48,17 +48,20 @@ type Feature interface {
 	feature.PageTypeProcessor
 }
 
+type MakeFeature interface {
+	Make() Feature
+
+	SetKeywordProvider(kwp feature.Tag) MakeFeature
+}
+
 type CFeature struct {
 	feature.CFeature
 
-	kwp   indexing.KeywordProvider
-	theme *theme.Theme
+	kwpTag feature.Tag
+	kwp    indexing.KeywordProvider
+	theme  *theme.Theme
 
 	sync.RWMutex
-}
-
-type MakeFeature interface {
-	Make() Feature
 }
 
 func New() MakeFeature {
@@ -68,13 +71,21 @@ func New() MakeFeature {
 	return f
 }
 
-func (f *CFeature) Make() Feature {
-	return f
-}
-
 func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 	f.kwp = nil
+}
+
+func (f *CFeature) SetKeywordProvider(kwp feature.Tag) MakeFeature {
+	f.kwpTag = kwp
+	return f
+}
+
+func (f *CFeature) Make() Feature {
+	if f.kwpTag == feature.NilTag {
+		log.FatalDF(1, "%v feature requires .SetKeywordProvider", f.Tag())
+	}
+	return f
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {
@@ -84,15 +95,15 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 	} else {
 		f.theme = t
 	}
-	for _, feat := range f.Enjin.Features() {
-		if kwp, ok := feat.(indexing.KeywordProvider); ok {
-			f.kwp = kwp
-			break
-		}
+
+	if kwpf, ok := f.Enjin.Features().Get(f.kwpTag); !ok {
+		log.FatalF("%v failed to find %v feature", f.Tag(), f.kwpTag)
+	} else if kwp, ok := feature.AsTyped[indexing.KeywordProvider](kwpf); !ok {
+		log.FatalF("%v feature is not an indexing.KeywordProvider", f.kwpTag)
+	} else {
+		f.kwp = kwp
 	}
-	if f.kwp == nil {
-		log.FatalF("%v requires a pagecache.KeywordProvider feature to be present", f.Tag())
-	}
+
 }
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
