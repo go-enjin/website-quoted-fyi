@@ -35,12 +35,12 @@ type Feature interface {
 	feature.PageTypeProcessor
 }
 
-type CFeature struct {
-	feature.CFeature
-}
-
 type MakeFeature interface {
 	Make() Feature
+}
+
+type CFeature struct {
+	feature.CFeature
 }
 
 func New() MakeFeature {
@@ -50,12 +50,12 @@ func New() MakeFeature {
 	return f
 }
 
-func (f *CFeature) Make() Feature {
-	return f
-}
-
 func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
+}
+
+func (f *CFeature) Make() Feature {
+	return f
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {

@@ -59,6 +59,12 @@ type Feature interface {
 	feature.PageContextModifier
 }
 
+type MakeFeature interface {
+	Make() Feature
+
+	SetKeywordProvider(kwp feature.Tag) MakeFeature
+}
+
 type CFeature struct {
 	feature.CFeature
 
@@ -76,10 +82,6 @@ type CFeature struct {
 	lastKnownWordsIdx int
 }
 
-type MakeFeature interface {
-	Make() Feature
-}
-
 func New() MakeFeature {
 	return NewTagged(Tag)
 }
@@ -91,10 +93,6 @@ func NewTagged(tag feature.Tag) MakeFeature {
 	return f
 }
 
-func (f *CFeature) Make() Feature {
-	return f
-}
-
 func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 	f.kwp = nil
@@ -102,6 +100,13 @@ func (f *CFeature) Init(this interface{}) {
 	f.knownPaths = xsync.NewMapOf[[]int]()
 	f.lookupWords = xsync.NewMapOf[int]()
 	f.lookupUnquoted = xsync.NewIntegerMapOf[int, int]()
+}
+
+func (f *CFeature) Make() Feature {
+	if f.kwpTag == feature.NilTag {
+		log.FatalDF(1, "%v feature requires .SetKeywordProvider", f.Tag())
+	}
+	return f
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {

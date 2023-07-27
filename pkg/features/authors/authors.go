@@ -53,6 +53,10 @@ type Feature interface {
 	indexing.PageIndexFeature
 }
 
+type MakeFeature interface {
+	Make() Feature
+}
+
 type CFeature struct {
 	feature.CFeature
 
@@ -61,10 +65,6 @@ type CFeature struct {
 	authorNameByAuthorKey *xsync.MapOf[string, string]
 	authorKeyByAuthorName *xsync.MapOf[string, string]
 	authorNamesByLetter   *xsync.MapOf[string, []string]
-}
-
-type MakeFeature interface {
-	Make() Feature
 }
 
 func New() MakeFeature {
@@ -81,12 +81,12 @@ func NewTagged(tag feature.Tag) MakeFeature {
 	return f
 }
 
-func (f *CFeature) Make() Feature {
-	return f
-}
-
 func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
+}
+
+func (f *CFeature) Make() Feature {
+	return f
 }
 
 func (f *CFeature) Setup(enjin feature.Internals) {
