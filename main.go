@@ -22,10 +22,10 @@ import (
 
 	"github.com/go-enjin/golang-org-x-text/language"
 
-	"github.com/go-enjin/be/drivers/kvs/gocache"
 	semantic "github.com/go-enjin/semantic-enjin-theme"
 
 	"github.com/go-enjin/be"
+	"github.com/go-enjin/be/drivers/kvs/gocache"
 	"github.com/go-enjin/be/drivers/kws"
 	"github.com/go-enjin/be/features/fs/content"
 	"github.com/go-enjin/be/features/log/papertrail"
@@ -124,10 +124,10 @@ func main() {
 		AddFeature(proxy.New().Enable().Make()).
 		AddFeature(formats.New().Defaults().AddFormat(q.New().Make()).Make()).
 		AddFeature(quote.New().Make()).
-		AddFeature(build.NewTagged(gBuildQuotesFeature).Make()).
-		AddFeature(words.New().Make()).
+		AddFeature(build.NewTagged(gBuildQuotesFeature).SetKeywordProvider(gKwsFeature).Make()).
+		AddFeature(words.New().SetKeywordProvider(gKwsFeature).Make()).
 		AddFeature(topics.New().Make()).
-		AddFeature(random.New().Make()).
+		AddFeature(random.New().SetKeywordProvider(gKwsFeature).Make()).
 		AddFeature(authors.NewTagged(gAuthorsFeature).Make()).
 		AddFeature(search.New().SetSearchPath("/search").Make()).
 		AddFeature(qfSearch.New().Make()).
