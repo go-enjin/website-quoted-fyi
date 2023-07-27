@@ -68,12 +68,14 @@ type MakeFeature interface {
 type CFeature struct {
 	feature.CFeature
 
-	kwp   indexing.KeywordProvider
-	theme *theme.Theme
+	kwpTag feature.Tag
+	kwp    indexing.KeywordProvider
+	theme  *theme.Theme
 
 	knownWords []string
 	knownStubs *xsync.MapOf[int, string]
-	knownPaths *xsync.MapOf[string, []int]
+	indexPaths *xsync.MapOf[string, []int]
+	builderKey *xsync.MapOf[string, string]
 
 	lookupWords    *xsync.MapOf[string, int]
 	lookupUnquoted *xsync.MapOf[int, int]
@@ -97,9 +99,15 @@ func (f *CFeature) Init(this interface{}) {
 	f.CFeature.Init(this)
 	f.kwp = nil
 	f.knownStubs = xsync.NewIntegerMapOf[int, string]()
-	f.knownPaths = xsync.NewMapOf[[]int]()
+	f.indexPaths = xsync.NewMapOf[[]int]()
+	f.builderKey = xsync.NewMapOf[string]()
 	f.lookupWords = xsync.NewMapOf[int]()
 	f.lookupUnquoted = xsync.NewIntegerMapOf[int, int]()
+}
+
+func (f *CFeature) SetKeywordProvider(kwp feature.Tag) MakeFeature {
+	f.kwpTag = kwp
+	return f
 }
 
 func (f *CFeature) Make() Feature {
@@ -116,14 +124,13 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 	} else {
 		f.theme = t
 	}
-	for _, feat := range f.Enjin.Features() {
-		if kwp, ok := feat.(indexing.KeywordProvider); ok {
-			f.kwp = kwp
-			break
-		}
-	}
-	if f.kwp == nil {
-		log.FatalF("%v requires a pagecache.KeywordProvider feature to be present", f.Tag())
+
+	if kwpf, ok := f.Enjin.Features().Get(f.kwpTag); !ok {
+		log.FatalF("%v failed to find %v feature", f.Tag(), f.kwpTag)
+	} else if kwp, ok := feature.AsTyped[indexing.KeywordProvider](kwpf); !ok {
+		log.FatalF("%v feature is not an indexing.KeywordProvider", f.kwpTag)
+	} else {
+		f.kwp = kwp
 	}
 }
 
@@ -134,10 +141,61 @@ func (f *CFeature) Startup(ctx *cli.Context) (err error) {
 
 func (f *CFeature) Use(s feature.System) feature.MiddlewareFn {
 	log.DebugF("including quote words middleware")
+
+	// TODO: investigate precaching QuoteBuilderKey for each quote (shortest non-specific index path)
+	/*
+		log.DebugF("%v: caching builder key lookups", f.Tag())
+		start := time.Now()
+		var count, errcount int
+		t := f.Enjin.MustGetTheme()
+		prevGC := debug.SetGCPercent(50)
+		f.knownStubs.Range(func(key int, shasum string) bool {
+			if stub := f.Enjin.FindPageStub(shasum); stub == nil {
+				log.ErrorF("error page stub not found: %v", shasum)
+				errcount += 1
+			} else if pg, err := page.NewFromPageStub(stub, t); err != nil {
+				log.ErrorF("error making page from stub: %v - %v", shasum, err)
+				errcount += 1
+			} else {
+				keywords := f.parseContentKeywords(pg.Content)
+				var quoteBuilderKey, quoteHash string
+				if quoteHash = pg.Context.String("QuoteHash", ""); quoteHash == "" {
+					log.ErrorF("error quote hash not found: %v", shasum)
+					return true
+				}
+
+				var wids []string
+				for _, word := range keywords {
+					wid, _ := f.lookupWords.Load(word)
+					wids = append(wids, strconv.Itoa(wid))
+				}
+				for i := len(wids) - 1; i >= 0; i-- {
+					if i == 0 {
+						quoteBuilderKey = keywords[0]
+					} else {
+						indexPath := strings.Join(wids[:i], "-")
+						if found := f.countBuiltQuotes(indexPath); found > 1 {
+							quoteBuilderKey = strings.Join(keywords[:i], "-")
+							// log.WarnF("found quote builder key: %v", keywords[:i])
+							break
+						}
+					}
+				}
+
+				f.builderKey.Store(quoteHash, quoteBuilderKey)
+				count += 1
+			}
+			return true
+		})
+		debug.SetGCPercent(prevGC)
+		delta := time.Now().Sub(start)
+		log.DebugF("%v: cached %d builder keys in %v (with %d errors)", f.Tag(), count, delta.String(), errcount)
+	*/
+
 	return func(next http.Handler) (this http.Handler) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			// TODO: redirect /w/ -> /words/, etc
+			// TODO: redirect /b/ -> /build/, etc
 			switch {
 			case f.ProcessPagePath(w, r):
 				return
@@ -150,33 +208,57 @@ func (f *CFeature) Use(s feature.System) feature.MiddlewareFn {
 	}
 }
 
+func (f *CFeature) findShortestBuilderKey(content string) (quoteBuilderKey string) {
+	keywords := f.parseContentKeywords(content)
+	var wids []string
+	for _, word := range keywords {
+		wid, _ := f.lookupWords.Load(word)
+		wids = append(wids, strconv.Itoa(wid))
+	}
+	/*
+		// reverse lookup
+		for i := len(wids) - 1; i >= 0; i-- {
+			if i == 0 {
+				quoteBuilderKey = keywords[0]
+			} else {
+				indexPath := strings.Join(wids[:i], "-")
+				if found := f.countBuiltQuotes(indexPath); found > 1 {
+					quoteBuilderKey = strings.Join(keywords[:i], "-")
+					// log.WarnF("found quote builder key: %v", keywords[:i])
+					break
+				}
+			}
+		}
+	*/
+	// forward lookup
+	var prevCount int
+	for i := 1; i < len(wids); i++ {
+		indexPath := strings.Join(wids[:i], "-")
+		if found := f.countBuiltQuotes(indexPath); found == 1 {
+			quoteBuilderKey = strings.Join(keywords[:i-1], "-")
+			// log.WarnF("found quote builder key: %v", keywords[:i])
+			break
+		} else if prevCount == 2 && found == 2 && i > 2 {
+			// catch plural singularities?
+			quoteBuilderKey = strings.Join(keywords[:i-2], "-")
+			break
+		} else {
+			prevCount = found
+		}
+	}
+	return
+}
+
 func (f *CFeature) FilterPageContext(themeCtx, pageCtx context.Context, r *http.Request) (themeOut context.Context) {
 	themeOut = themeCtx
 	if pgType, ok := pageCtx.Get("Type").(string); ok {
 		if pgType == "quote" {
-			var quoteBuilderKey string
-			if content, ok := pageCtx.Get("Content").(string); ok {
-				keywords := regexps.RxKeywords.FindAllString(strings.ToLower(content), -1)
-				var swids []string
-				for _, word := range keywords {
-					if wid, ok := f.lookupWords.Load(word); ok {
-						swids = append(swids, strconv.Itoa(wid))
-					}
-				}
-				for i := len(swids) - 1; i >= 0; i-- {
-					if i == 0 {
-						quoteBuilderKey = keywords[0]
-					} else {
-						indexPath := strings.Join(swids[:i], "-")
-						if found := f.getBuiltQuotes(indexPath); len(found) > 1 {
-							quoteBuilderKey = strings.Join(keywords[:i], "-")
-							// log.WarnF("found quote builder key: %v", keywords[:i])
-							break
-						}
-					}
-				}
-			}
-			themeOut.SetSpecific("QuoteBuilderKey", quoteBuilderKey)
+			themeOut.SetSpecific(
+				"QuoteBuilderKey",
+				f.findShortestBuilderKey(
+					pageCtx.String("Content", ""),
+				),
+			)
 			// log.WarnF("quote builder key: %v", quoteBuilderKey)
 		}
 	}
@@ -417,18 +499,18 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 		}
 	}
 
-	var path string
+	var indexPath string
 	foundWords := f.parseContentKeywords(p.Content)
 	for idx, keyword := range foundWords {
 		addLookupWord(keyword)
 		if idx > 0 {
-			path += "-"
+			indexPath += "-"
 		}
 		wid, _ := f.lookupWords.Load(keyword)
-		path += strconv.Itoa(wid)
+		indexPath += strconv.Itoa(wid)
 	}
-	knownPaths, _ := f.knownPaths.Load(path)
-	f.knownPaths.Store(path, append(knownPaths, f.lastStubIdx))
+	knownPaths, _ := f.indexPaths.Load(indexPath)
+	f.indexPaths.Store(indexPath, append(knownPaths, f.lastStubIdx))
 
 	var unqPath string
 	for idx, keyword := range foundWords {
@@ -446,9 +528,9 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 			unqPath += strconv.Itoa(wid)
 		}
 	}
-	if unqPath != path {
-		unqPaths, _ := f.knownPaths.Load(unqPath)
-		f.knownPaths.Store(unqPath, append(unqPaths, f.lastStubIdx))
+	if unqPath != indexPath {
+		unqPaths, _ := f.indexPaths.Load(unqPath)
+		f.indexPaths.Store(unqPath, append(unqPaths, f.lastStubIdx))
 	}
 
 	return
@@ -462,7 +544,7 @@ func (f *CFeature) getFirstWordFirstLetters() (letters []string) {
 	//f.RLock()
 	//defer f.RUnlock()
 	cache := make(map[string]bool)
-	f.knownPaths.Range(func(key string, value []int) bool {
+	f.indexPaths.Range(func(key string, _ []int) bool {
 		m := RxFirstWidInPath.FindAllString(key, 1)
 		wid, _ := strconv.Atoi(m[0])
 		if wid >= 0 && wid < len(f.knownWords) {
@@ -480,7 +562,7 @@ func (f *CFeature) getFirstWordsStartingWith(prefix uint8) (words []string) {
 	//f.RLock()
 	//defer f.RUnlock()
 	cache := make(map[string]bool)
-	f.knownPaths.Range(func(key string, value []int) bool {
+	f.indexPaths.Range(func(key string, _ []int) bool {
 		m := RxFirstWidInPath.FindAllString(key, 1)
 		wid, _ := strconv.Atoi(m[0])
 		if wid >= 0 && wid < len(f.knownWords) {
@@ -504,7 +586,7 @@ func (f *CFeature) getNextWords(indexPath string) (words []string) {
 	foundWords := make(map[string]bool)
 	indexPathLength := len(indexPath)
 	prefixPath := indexPath + "-"
-	f.knownPaths.Range(func(key string, value []int) bool {
+	f.indexPaths.Range(func(key string, _ []int) bool {
 		if pathLength := len(key); pathLength > indexPathLength {
 			if key[:indexPathLength+1] == prefixPath {
 				suffix := key[indexPathLength+1:]
@@ -533,6 +615,29 @@ func (f *CFeature) getNextWords(indexPath string) (words []string) {
 	return
 }
 
+func (f *CFeature) countBuiltQuotes(indexPath string) (count int) {
+	reqPathLen := len(indexPath)
+	prefixPath := indexPath + "-"
+	prefixPathLen := reqPathLen + 1
+	fn := func(key string, ids []int) bool {
+		if pathLen := len(key); pathLen >= reqPathLen {
+			switch {
+			case key == indexPath:
+				// exact match
+			case pathLen >= prefixPathLen && key[:prefixPathLen] == prefixPath:
+				// prefix match
+			default:
+				return true
+			}
+			count += len(ids)
+			//return false
+		}
+		return true
+	}
+	f.indexPaths.Range(fn)
+	return
+}
+
 func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote) {
 	//f.RLock()
 	//defer f.RUnlock()
@@ -543,7 +648,7 @@ func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote)
 	prefixPathLen := reqPathLen + 1
 
 	var done bool
-	f.knownPaths.Range(func(key string, ids []int) bool {
+	f.indexPaths.Range(func(key string, ids []int) bool {
 		if pathLen := len(key); pathLen >= reqPathLen {
 			switch {
 			case key == indexPath:
