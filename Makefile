@@ -23,16 +23,19 @@ APP_SUMMARY := quoted.fyi
 
 DENY_DURATION := 600
 
-COMMON_TAGS += htmlify
+ADD_TAGS_DEFAULTS := true
+
 COMMON_TAGS += papertrail
-COMMON_TAGS += header_proxy
-COMMON_TAGS += basic_auth
+COMMON_TAGS += user_auth_basic
+COMMON_TAGS += user_base_htenv
 COMMON_TAGS += driver_kws
 #COMMON_TAGS += driver_kvs_gocache memory memshard imcache bigcache ristretto
 COMMON_TAGS += driver_kvs_gocache memory
-COMMON_TAGS += page_pql page_query page_search
+COMMON_TAGS += page_pql
+COMMON_TAGS += page_search
 COMMON_TAGS += page_robots
-COMMON_TAGS += driver_fs_embed driver_fs_zip
+COMMON_TAGS += driver_fs_embed
+COMMON_TAGS += driver_fs_zip
 COMMON_TAGS += fs_theme fs_menu fs_content fs_public
 
 BUILD_TAGS     = prd embeds $(COMMON_TAGS)
