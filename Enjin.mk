@@ -1,6 +1,6 @@
 #!/usr/bin/make --no-print-directory --jobs=1 --environment-overrides -f
 
-# Copyright (c) 2022  The Go-Enjin Authors
+# Copyright (c) 2023  The Go-Enjin Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION = v0.2.10
+ENJIN_MK_VERSION := v0.2.11
 
 SHELL = /bin/bash
 
@@ -59,7 +59,37 @@ DEV_BUILD_TAGS    ?= ${BUILD_TAGS}
 DEV_BUILD_ARGV    ?=
 DEV_BUILD_GCFLAGS ?=
 
+PRESET_TAGS ?=
 
+ifeq (${ADD_TAGS_ESSENTIALS},true)
+PRESET_TAGS += requests_deny
+PRESET_TAGS += htmlify
+PRESET_TAGS += header_proxy
+PRESET_TAGS += page_query
+PRESET_TAGS += page_partials
+PRESET_TAGS += page_funcmaps
+PRESET_TAGS += srv_pages
+PRESET_TAGS += srv_listener_httpd
+endif
+
+ifeq (${ADD_TAGS_DEFAULTS},true)
+PRESET_TAGS += requests_deny
+PRESET_TAGS += user_base_htenv
+PRESET_TAGS += user_auth_basic
+PRESET_TAGS += htmlify
+PRESET_TAGS += header_proxy
+PRESET_TAGS += page_query
+PRESET_TAGS += page_partials
+PRESET_TAGS += page_funcmaps
+PRESET_TAGS += page_permalink
+PRESET_TAGS += srv_pages
+PRESET_TAGS += srv_listener_httpd
+endif
+
+ifneq (${PRESET_TAGS},)
+BUILD_TAGS     += ${PRESET_TAGS}
+DEV_BUILD_TAGS += ${PRESET_TAGS}
+endif
 
 GOPKG_KEYS ?=
 
