@@ -25,13 +25,10 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/go-enjin/be/pkg/feature"
-	"github.com/go-enjin/be/pkg/fs"
-	"github.com/go-enjin/be/pkg/indexing"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
-	"github.com/go-enjin/be/pkg/page"
 	"github.com/go-enjin/be/pkg/request/argv"
-	"github.com/go-enjin/be/pkg/theme"
+	"github.com/go-enjin/be/types/page"
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
@@ -58,8 +55,8 @@ type CFeature struct {
 	feature.CFeature
 
 	kwpTag feature.Tag
-	kwp    indexing.KeywordProvider
-	theme  *theme.Theme
+	kwp    feature.KeywordProvider
+	theme  feature.Theme
 
 	sync.RWMutex
 }
@@ -67,6 +64,7 @@ type CFeature struct {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.PackageTag = Tag
 	f.FeatureTag = Tag
 	return f
 }
@@ -98,7 +96,7 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 
 	if kwpf, ok := f.Enjin.Features().Get(f.kwpTag); !ok {
 		log.FatalF("%v failed to find %v feature", f.Tag(), f.kwpTag)
-	} else if kwp, ok := feature.AsTyped[indexing.KeywordProvider](kwpf); !ok {
+	} else if kwp, ok := feature.AsTyped[feature.KeywordProvider](kwpf); !ok {
 		log.FatalF("%v feature is not an indexing.KeywordProvider", f.kwpTag)
 	} else {
 		f.kwp = kwp
@@ -136,7 +134,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 
 			reqArgv := argv.DecodeHttpRequest(r)
 
-			numPerPage, pageNumber := wordPage.Context.Int("NumPerPage", 100), 0
+			numPerPage, pageNumber := wordPage.Context().Int("NumPerPage", 100), 0
 			if reqArgv.NumPerPage > 0 {
 				numPerPage = reqArgv.NumPerPage
 			}
@@ -176,7 +174,7 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			log.WarnF("found %d stubs for word: %v", selectedStubsCount, word)
 
 			var totalNumPages int
-			var matchingStubs []*fs.PageStub
+			var matchingStubs []*feature.PageStub
 
 			if selectedStubsCount <= numPerPage {
 				totalNumPages = 1
@@ -208,21 +206,21 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 				matchingStubs = selectedStubs[startIndex:endIndex]
 			}
 
-			var selectedQuotes []*page.Page
+			var selectedQuotes []feature.Page
 			topicsLookup := make(map[string][]*quote.Quote)
 			for _, stub := range matchingStubs {
-				if pg, err := page.NewFromPageStub(stub, f.theme); err != nil {
+				if pg, err := page.NewPageFromStub(stub, f.theme); err != nil {
 					log.ErrorF("error making page from cache: %v", err)
 				} else {
 					selectedQuotes = append(selectedQuotes, pg)
-					if topics, ok := pg.Context.Get("QuoteCategories").([]string); ok {
+					if topics, ok := pg.Context().Get("QuoteCategories").([]string); ok {
 						for _, topic := range topics {
 							if topic == "" {
 								continue
 							}
 							topicsLookup[topic] = append(topicsLookup[topic], &quote.Quote{
-								Url:  pg.Url,
-								Hash: pg.Context.Get("QuoteHash").(string),
+								Url:  pg.Url(),
+								Hash: pg.Context().Get("QuoteHash").(string),
 							})
 						}
 					}
@@ -252,14 +250,14 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			// log.WarnF("selected %d quotes, npp=%v, pn=%v", len(selectedQuotes), numPerPage, pageNumber)
 
 			wordPage.SetSlugUrl("/w/" + word)
-			wordPage.Context.SetSpecific("Title", `Quoted.FYI: word "`+word+`"`)
-			wordPage.Context.SetSpecific("Word", word)
-			wordPage.Context.SetSpecific("TotalQuotes", selectedStubsCount)
-			wordPage.Context.SetSpecific("TotalNumPages", totalNumPages)
-			wordPage.Context.SetSpecific("PageNumber", pageNumber)
-			wordPage.Context.SetSpecific("NumPerPage", numPerPage)
-			wordPage.Context.SetSpecific("TotalTopics", len(topicsLookup))
-			wordPage.Context.SetSpecific("WordGroups", wordGroups)
+			wordPage.Context().SetSpecific("Title", `Quoted.FYI: word "`+word+`"`)
+			wordPage.Context().SetSpecific("Word", word)
+			wordPage.Context().SetSpecific("TotalQuotes", selectedStubsCount)
+			wordPage.Context().SetSpecific("TotalNumPages", totalNumPages)
+			wordPage.Context().SetSpecific("PageNumber", pageNumber)
+			wordPage.Context().SetSpecific("NumPerPage", numPerPage)
+			wordPage.Context().SetSpecific("TotalTopics", len(topicsLookup))
+			wordPage.Context().SetSpecific("WordGroups", wordGroups)
 			if err := f.Enjin.ServePage(wordPage, w, r); err != nil {
 				log.ErrorF("error serving words listing page: %v", err)
 			} else {
@@ -270,10 +268,10 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 	return
 }
 
-func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
+func (f *CFeature) ProcessRequestPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
 	// reqArgv := site.GetRequestArgv(r)
 
-	switch p.Type {
+	switch p.Type() {
 	case "words":
 		pg, redirect, processed, err = f.ProcessGroupsPageType(r, p)
 	case "word":
@@ -283,12 +281,12 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 	return
 }
 
-func (f *CFeature) ProcessSinglePageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit word page type: %v", p.Url)
+func (f *CFeature) ProcessSinglePageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
+	// log.WarnF("hit word page type: %v", p.Url())
 	return
 }
 
-func (f *CFeature) ProcessGroupsPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit words group type: %v", p.Url)
+func (f *CFeature) ProcessGroupsPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
+	// log.WarnF("hit words group type: %v", p.Url())
 	return
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
-	"github.com/go-enjin/be/pkg/page"
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
@@ -50,6 +49,7 @@ type CFeature struct {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.PackageTag = Tag
 	f.FeatureTag = Tag
 	return f
 }
@@ -71,31 +71,31 @@ func (f *CFeature) Startup(ctx *cli.Context) (err error) {
 	return
 }
 
-func (f *CFeature) SearchResultsPostProcess(p *page.Page) {
+func (f *CFeature) SearchResultsPostProcess(p feature.Page) {
 	var query string
-	if query = p.Context.String("SiteSearchQuery", ""); query == "" {
-		p.Title = "Quoted.FYI: Search"
+	if query = p.Context().String("SiteSearchQuery", ""); query == "" {
+		p.SetTitle("Quoted.FYI: Search")
 	} else {
-		p.Title = "Quoted.FYI: Searching"
+		p.SetTitle("Quoted.FYI: Searching")
 	}
-	p.Context.SetSpecific("Title", p.Title)
+	p.Context().SetSpecific("Title", p.Title())
 
 	langTag := f.Enjin.SiteDefaultLanguage()
-	if results, ok := p.Context.Get("SiteSearchResults").(*bleve.SearchResult); ok {
+	if results, ok := p.Context().Get("SiteSearchResults").(*bleve.SearchResult); ok {
 
 		authorLookup := make(map[string][]*quote.Quote)
 
-		// found := make(map[string]*page.Page)
+		// found := make(map[string]feature.Page)
 		for _, hit := range results.Hits {
 			if pg := f.Enjin.FindPage(langTag, hit.ID); pg != nil {
-				if pg.Type != "quote" {
+				if pg.Type() != "quote" {
 					continue
 				}
 				// found[pg.Url] = pg
-				qAuthor := pg.Context.Get("QuoteAuthor").(string)
+				qAuthor := pg.Context().Get("QuoteAuthor").(string)
 				authorLookup[qAuthor] = append(authorLookup[qAuthor], &quote.Quote{
-					Url:  pg.Url,
-					Hash: pg.Context.Get("QuoteHash").(string),
+					Url:  pg.Url(),
+					Hash: pg.Context().Get("QuoteHash").(string),
 				})
 			} else {
 				log.ErrorF("page not found: %v", hit.ID)
@@ -126,7 +126,7 @@ func (f *CFeature) SearchResultsPostProcess(p *page.Page) {
 			)
 		}
 
-		p.Context.SetSpecific("QuotedGroups", quotedGroups)
+		p.Context().SetSpecific("QuotedGroups", quotedGroups)
 
 	}
 }

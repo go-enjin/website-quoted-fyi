@@ -24,9 +24,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/go-enjin/be/pkg/feature"
-	"github.com/go-enjin/be/pkg/indexing"
 	"github.com/go-enjin/be/pkg/log"
-	"github.com/go-enjin/be/pkg/page"
 )
 
 var (
@@ -51,12 +49,13 @@ type CFeature struct {
 	feature.CFeature
 
 	kwpTag feature.Tag
-	kwp    indexing.KeywordProvider
+	kwp    feature.KeywordProvider
 }
 
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.PackageTag = Tag
 	f.FeatureTag = Tag
 	return f
 }
@@ -82,7 +81,7 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 
 	if kwpf, ok := f.Enjin.Features().Get(f.kwpTag); !ok {
 		log.FatalF("%v failed to find %v feature", f.Tag(), f.kwpTag)
-	} else if kwp, ok := feature.AsTyped[indexing.KeywordProvider](kwpf); !ok {
+	} else if kwp, ok := feature.AsTyped[feature.KeywordProvider](kwpf); !ok {
 		log.FatalF("%v feature is not an indexing.KeywordProvider", f.kwpTag)
 	} else {
 		f.kwp = kwp
@@ -94,12 +93,12 @@ func (f *CFeature) Startup(ctx *cli.Context) (err error) {
 	return
 }
 
-func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
+func (f *CFeature) ProcessRequestPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
 	// reqArgv := site.GetRequestArgv(r)
-	if p.Type == "random" {
+	if p.Type() == "random" {
 
-		if v, ok := p.Context.Get("Random").(string); !ok {
-			log.ErrorF("random page without random key: %v", p.Url)
+		if v, ok := p.Context().Get("Random").(string); !ok {
+			log.ErrorF("random page without random key: %v", p.Url())
 			redirect = "/random"
 			return
 		} else {
@@ -107,20 +106,20 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 			case "a", "author":
 				author := f.getRandomAuthor()
 				authorKey := strcase.ToSnake(author)
-				p.Context.SetSpecific("AuthorKey", authorKey)
-				p.Context.SetSpecific("AuthorName", author)
-				p.Context.SetSpecific("MetaRefresh", "5; url=/a/"+url.PathEscape(authorKey))
+				p.Context().SetSpecific("AuthorKey", authorKey)
+				p.Context().SetSpecific("AuthorName", author)
+				p.Context().SetSpecific("MetaRefresh", "5; url=/a/"+url.PathEscape(authorKey))
 			case "t", "topic":
 				topic := f.getRandomTopic()
-				p.Context.SetSpecific("Topic", topic)
-				p.Context.SetSpecific("MetaRefresh", "5; url=/t/"+url.PathEscape(topic))
+				p.Context().SetSpecific("Topic", topic)
+				p.Context().SetSpecific("MetaRefresh", "5; url=/t/"+url.PathEscape(topic))
 			case "q", "quote":
 				quoteUrl := f.getRandomQuoteUrl()
 				if quotePg := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), quoteUrl); quotePg != nil {
-					p.Context.SetSpecific("QuoteUrl", quotePg.Url)
-					quoteHash, _ := quotePg.Context.Get("QuoteHash").(string)
-					p.Context.SetSpecific("QuoteHash", quoteHash)
-					p.Context.SetSpecific("MetaRefresh", "5; url="+quotePg.Url)
+					p.Context().SetSpecific("QuoteUrl", quotePg.Url())
+					quoteHash, _ := quotePg.Context().Get("QuoteHash").(string)
+					p.Context().SetSpecific("QuoteHash", quoteHash)
+					p.Context().SetSpecific("MetaRefresh", "5; url="+quotePg.Url())
 				} else {
 					log.ErrorF("error finding page by random quote url: %v", quoteUrl)
 					redirect = "/r/q/"
@@ -128,8 +127,8 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 				}
 			case "w", "word":
 				word := f.getRandomWord()
-				p.Context.SetSpecific("Word", word)
-				p.Context.SetSpecific("MetaRefresh", "5; url=/w/"+url.PathEscape(word))
+				p.Context().SetSpecific("Word", word)
+				p.Context().SetSpecific("MetaRefresh", "5; url=/w/"+url.PathEscape(word))
 			default:
 				log.ErrorF("random page with invalid random key value: %v", v)
 				redirect = "/random"

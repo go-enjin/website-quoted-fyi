@@ -30,14 +30,11 @@ import (
 
 	"github.com/go-enjin/be/pkg/context"
 	"github.com/go-enjin/be/pkg/feature"
-	"github.com/go-enjin/be/pkg/fs"
-	"github.com/go-enjin/be/pkg/indexing"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
-	"github.com/go-enjin/be/pkg/page"
 	"github.com/go-enjin/be/pkg/regexps"
 	"github.com/go-enjin/be/pkg/request/argv"
-	"github.com/go-enjin/be/pkg/theme"
+	"github.com/go-enjin/be/types/page"
 
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
@@ -55,7 +52,7 @@ type Feature interface {
 	feature.Feature
 	feature.UseMiddleware
 	feature.PageTypeProcessor
-	indexing.PageIndexFeature
+	feature.PageIndexFeature
 	feature.PageContextModifier
 }
 
@@ -69,8 +66,8 @@ type CFeature struct {
 	feature.CFeature
 
 	kwpTag feature.Tag
-	kwp    indexing.KeywordProvider
-	theme  *theme.Theme
+	kwp    feature.KeywordProvider
+	theme  feature.Theme
 
 	knownWords []string
 	knownStubs *xsync.MapOf[int, string]
@@ -91,6 +88,7 @@ func New() MakeFeature {
 func NewTagged(tag feature.Tag) MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.PackageTag = Tag
 	f.FeatureTag = tag
 	return f
 }
@@ -127,7 +125,7 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 
 	if kwpf, ok := f.Enjin.Features().Get(f.kwpTag); !ok {
 		log.FatalF("%v failed to find %v feature", f.Tag(), f.kwpTag)
-	} else if kwp, ok := feature.AsTyped[indexing.KeywordProvider](kwpf); !ok {
+	} else if kwp, ok := feature.AsTyped[feature.KeywordProvider](kwpf); !ok {
 		log.FatalF("%v feature is not an indexing.KeywordProvider", f.kwpTag)
 	} else {
 		f.kwp = kwp
@@ -159,7 +157,7 @@ func (f *CFeature) Use(s feature.System) feature.MiddlewareFn {
 			} else {
 				keywords := f.parseContentKeywords(pg.Content)
 				var quoteBuilderKey, quoteHash string
-				if quoteHash = pg.Context.String("QuoteHash", ""); quoteHash == "" {
+				if quoteHash = pg.Context().String("QuoteHash", ""); quoteHash == "" {
 					log.ErrorF("error quote hash not found: %v", shasum)
 					return true
 				}
@@ -358,17 +356,17 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 			builtQuotes := f.getBuiltQuotes(indexPath)
 			numBuiltQuotes := len(builtQuotes)
 			if numBuiltQuotes == 1 {
-				buildPage.Context.SetSpecific("Title", `Quoted.FYI: Built - `+builtSentence)
+				buildPage.Context().SetSpecific("Title", `Quoted.FYI: Built - `+builtSentence)
 			} else {
-				buildPage.Context.SetSpecific("Title", `Quoted.FYI: Building - `+builtSentence)
+				buildPage.Context().SetSpecific("Title", `Quoted.FYI: Building - `+builtSentence)
 			}
 			buildPage.SetSlugUrl("/b/" + rebuiltPath)
-			buildPage.Context.SetSpecific("BuildPath", rebuiltPath)
-			buildPage.Context.SetSpecific("BuildPathLinks", buildPathLinks)
-			buildPage.Context.SetSpecific("NextWordGroups", nextWordsGrouped)
-			buildPage.Context.SetSpecific("NumNextWordGroups", len(nextWordsGrouped))
-			buildPage.Context.SetSpecific("BuiltQuotes", builtQuotes)
-			buildPage.Context.SetSpecific("NumBuiltQuotes", numBuiltQuotes)
+			buildPage.Context().SetSpecific("BuildPath", rebuiltPath)
+			buildPage.Context().SetSpecific("BuildPathLinks", buildPathLinks)
+			buildPage.Context().SetSpecific("NextWordGroups", nextWordsGrouped)
+			buildPage.Context().SetSpecific("NumNextWordGroups", len(nextWordsGrouped))
+			buildPage.Context().SetSpecific("BuiltQuotes", builtQuotes)
+			buildPage.Context().SetSpecific("NumBuiltQuotes", numBuiltQuotes)
 			if err := f.Enjin.ServePage(buildPage, w, r); err != nil {
 				log.ErrorF("error serving words listing page: %v", err)
 			} else {
@@ -414,12 +412,12 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 			}
 
 			buildingPage.SetSlugUrl("/build/" + groupChar)
-			// buildingPage.Context.SetSpecific("Topics", words)
-			// buildingPage.Context.SetSpecific("TopicLetters", topicLetters)
-			// buildingPage.Context.SetSpecific("NumTopics", len(words))
-			buildingPage.Context.SetSpecific("FirstWordGroups", firstWordGroups)
-			// buildingPage.Context.SetSpecific("TopicCharacter", groupChar)
-			// buildingPage.Context.SetSpecific("TotalNumTopics", totalNumWords)
+			// buildingPage.Context().SetSpecific("Topics", words)
+			// buildingPage.Context().SetSpecific("TopicLetters", topicLetters)
+			// buildingPage.Context().SetSpecific("NumTopics", len(words))
+			buildingPage.Context().SetSpecific("FirstWordGroups", firstWordGroups)
+			// buildingPage.Context().SetSpecific("TopicCharacter", groupChar)
+			// buildingPage.Context().SetSpecific("TotalNumTopics", totalNumWords)
 			if err := f.Enjin.ServePage(buildingPage, w, r); err != nil {
 				log.ErrorF("error serving words listing page: %v", err)
 			} else {
@@ -430,10 +428,10 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 	return
 }
 
-func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
+func (f *CFeature) ProcessRequestPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
 	// reqArgv := site.GetRequestArgv(r)
 
-	switch p.Type {
+	switch p.Type() {
 	case "build":
 		pg, redirect, processed, err = f.ProcessBuildPageType(r, p)
 	case "builder":
@@ -445,25 +443,25 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 	return
 }
 
-func (f *CFeature) ProcessBuildPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit build page type: %v", p.Url)
-	p.Context.SetSpecific("FirstWordFirstLetters", f.getFirstWordFirstLetters())
+func (f *CFeature) ProcessBuildPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
+	// log.WarnF("hit build page type: %v", p.Url())
+	p.Context().SetSpecific("FirstWordFirstLetters", f.getFirstWordFirstLetters())
 	pg = p
 	processed = true
 	return
 }
 
-func (f *CFeature) ProcessBuilderPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit builder page type: %v", p.Url)
-	p.Context.SetSpecific("FirstWordFirstLetters", f.getFirstWordFirstLetters())
+func (f *CFeature) ProcessBuilderPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
+	// log.WarnF("hit builder page type: %v", p.Url())
+	p.Context().SetSpecific("FirstWordFirstLetters", f.getFirstWordFirstLetters())
 	pg = p
 	processed = true
 	return
 }
 
-func (f *CFeature) ProcessBuildingPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit building page type: %v", p.Url)
-	p.Context.SetSpecific("FirstWordFirstLetters", f.getFirstWordFirstLetters())
+func (f *CFeature) ProcessBuildingPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
+	// log.WarnF("hit building page type: %v", p.Url())
+	p.Context().SetSpecific("FirstWordFirstLetters", f.getFirstWordFirstLetters())
 	pg = p
 	processed = true
 	return
@@ -479,9 +477,9 @@ func (f *CFeature) parseContentKeywords(content string) (keywords []string) {
 	return
 }
 
-func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
+func (f *CFeature) AddToIndex(stub *feature.PageStub, p feature.Page) (err error) {
 
-	if p.Type != "quote" {
+	if p.Type() != "quote" {
 		return
 	}
 
@@ -500,7 +498,7 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 	}
 
 	var indexPath string
-	foundWords := f.parseContentKeywords(p.Content)
+	foundWords := f.parseContentKeywords(p.Content())
 	for idx, keyword := range foundWords {
 		addLookupWord(keyword)
 		if idx > 0 {
@@ -675,15 +673,15 @@ func (f *CFeature) getBuiltQuotes(indexPath string) (builtQuotes []*quote.Quote)
 		if idx >= 0 && idx <= f.lastStubIdx {
 			shasum, _ := f.knownStubs.Load(idx)
 			if stub := f.Enjin.FindPageStub(shasum); stub != nil {
-				if pg, err := page.NewFromPageStub(stub, f.theme); err != nil {
+				if pg, err := page.NewPageFromStub(stub, f.theme); err != nil {
 					log.ErrorF("error making page from cache: %v - %v", stub.Source, err)
-				} else if hash, ok := pg.Context.Get("QuoteHash").(string); ok {
+				} else if hash, ok := pg.Context().Get("QuoteHash").(string); ok {
 					builtQuotes = append(builtQuotes, &quote.Quote{
-						Url:  pg.Url,
+						Url:  pg.Url(),
 						Hash: hash,
 					})
 				} else {
-					log.ErrorF("error page missing QuoteHash: %v", pg.Url)
+					log.ErrorF("error page missing QuoteHash: %v", pg.Url())
 				}
 			} else {
 				log.ErrorF("error finding page stub by shasum: %v", shasum)

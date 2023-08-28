@@ -29,9 +29,8 @@ import (
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
-	"github.com/go-enjin/be/pkg/page"
 	"github.com/go-enjin/be/pkg/request/argv"
-	beStrings "github.com/go-enjin/be/pkg/strings"
+	"github.com/go-enjin/be/pkg/slices"
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
@@ -59,6 +58,7 @@ type MakeFeature interface {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.PackageTag = Tag
 	f.FeatureTag = Tag
 	return f
 }
@@ -120,10 +120,10 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 
 		authorLookup := make(map[string][]*quote.Quote)
 		for _, selectedQuote := range selectedQuotes {
-			authorName, _ := selectedQuote.Context.Get("QuoteAuthor").(string)
+			authorName, _ := selectedQuote.Context().Get("QuoteAuthor").(string)
 			authorLookup[authorName] = append(authorLookup[authorName], &quote.Quote{
-				Url:  selectedQuote.Url,
-				Hash: selectedQuote.Context.Get("QuoteHash").(string),
+				Url:  selectedQuote.Url(),
+				Hash: selectedQuote.Context().Get("QuoteHash").(string),
 			})
 		}
 
@@ -156,11 +156,11 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 
 		if topicPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!t/{key}"); topicPage != nil {
 			topicPage.SetSlugUrl("/t/" + topic)
-			topicPage.Context.SetSpecific("Title", "Quoted.FYI: topic "+topic)
-			topicPage.Context.SetSpecific("Topic", topic)
-			topicPage.Context.SetSpecific("TotalQuotes", len(selectedQuotes))
-			topicPage.Context.SetSpecific("TotalAuthors", len(authorLookup))
-			topicPage.Context.SetSpecific("TopicAuthors", topicAuthors)
+			topicPage.Context().SetSpecific("Title", "Quoted.FYI: topic "+topic)
+			topicPage.Context().SetSpecific("Topic", topic)
+			topicPage.Context().SetSpecific("TotalQuotes", len(selectedQuotes))
+			topicPage.Context().SetSpecific("TotalAuthors", len(authorLookup))
+			topicPage.Context().SetSpecific("TopicAuthors", topicAuthors)
 			if err := f.Enjin.ServePage(topicPage, w, r); err != nil {
 				log.ErrorF("error serving topics listing page: %v", err)
 			} else {
@@ -192,7 +192,7 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 						continue
 					}
 					fc := strings.ToLower(string(topic[0]))
-					if !beStrings.StringInSlices(fc, topicLetters) {
+					if !slices.Within(fc, topicLetters) {
 						topicLetters = append(topicLetters, fc)
 					}
 					if fc == groupChar {
@@ -226,12 +226,12 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 
 		if listingPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!topics/{key}"); listingPage != nil {
 			listingPage.SetSlugUrl("/topics/" + groupChar)
-			listingPage.Context.SetSpecific("Topics", topics)
-			listingPage.Context.SetSpecific("TopicLetters", topicLetters)
-			listingPage.Context.SetSpecific("NumTopics", len(topics))
-			listingPage.Context.SetSpecific("TopicGroups", topicGroups)
-			listingPage.Context.SetSpecific("TopicCharacter", groupChar)
-			listingPage.Context.SetSpecific("TotalNumTopics", totalNumTopics)
+			listingPage.Context().SetSpecific("Topics", topics)
+			listingPage.Context().SetSpecific("TopicLetters", topicLetters)
+			listingPage.Context().SetSpecific("NumTopics", len(topics))
+			listingPage.Context().SetSpecific("TopicGroups", topicGroups)
+			listingPage.Context().SetSpecific("TopicCharacter", groupChar)
+			listingPage.Context().SetSpecific("TotalNumTopics", totalNumTopics)
 			if err := f.Enjin.ServePage(listingPage, w, r); err != nil {
 				log.ErrorF("error serving topics listing page: %v", err)
 			} else {
@@ -242,10 +242,10 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 	return
 }
 
-func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
+func (f *CFeature) ProcessRequestPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
 	// reqArgv := site.GetRequestArgv(r)
 
-	switch p.Type {
+	switch p.Type() {
 	case "topics":
 		pg, redirect, processed, err = f.ProcessGroupsPageType(r, p)
 	case "topic":
@@ -255,13 +255,13 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 	return
 }
 
-func (f *CFeature) ProcessSinglePageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit topic page type: %v", p.Url)
+func (f *CFeature) ProcessSinglePageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
+	// log.WarnF("hit topic page type: %v", p.Url())
 	return
 }
 
-func (f *CFeature) ProcessGroupsPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit topic group type: %v", p.Url)
+func (f *CFeature) ProcessGroupsPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
+	// log.WarnF("hit topic group type: %v", p.Url())
 	pg = p
 	processed = true
 	return

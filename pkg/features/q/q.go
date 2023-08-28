@@ -28,11 +28,9 @@ import (
 	"github.com/go-enjin/be/pkg/context"
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/indexing/search"
-	"github.com/go-enjin/be/pkg/page"
 	"github.com/go-enjin/be/pkg/regexps"
+	"github.com/go-enjin/be/pkg/slices"
 	beStrings "github.com/go-enjin/be/pkg/strings"
-	"github.com/go-enjin/be/pkg/theme"
-	types "github.com/go-enjin/be/pkg/types/theme-types"
 	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
 )
 
@@ -51,7 +49,7 @@ func init() {
 
 type Feature interface {
 	feature.Feature
-	types.Format
+	feature.PageFormat
 }
 
 type MakeFeature interface {
@@ -65,6 +63,7 @@ type CFeature struct {
 func New() MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.PackageTag = Tag
 	f.FeatureTag = Tag
 	return f
 }
@@ -118,7 +117,7 @@ func (f *CFeature) Prepare(ctx context.Context, content string) (out context.Con
 	for _, vv := range v {
 		if vs, ok := vv.(string); ok {
 			vsl := strings.ToLower(vs)
-			if !beStrings.StringInSlices(vsl, categories) {
+			if !slices.Within(vsl, categories) {
 				categories = append(categories, vsl)
 				categoryKeys = append(categoryKeys, strcase.ToSnake(vsl))
 			}
@@ -160,12 +159,12 @@ func (f *CFeature) Prepare(ctx context.Context, content string) (out context.Con
 	return
 }
 
-func (f *CFeature) Process(ctx context.Context, t types.Theme, content string) (html htmlTemplate.HTML, redirect string, err *types.EnjinError) {
+func (f *CFeature) Process(ctx context.Context, content string) (html htmlTemplate.HTML, redirect string, err error) {
 	scheme := "https"
 	var host, pgUrl string
 	if host = ctx.String(".Request.Host", ""); host == "" {
 		scheme = "http"
-		listener, port := f.Enjin.ServiceInfo()
+		_, listener, port := f.Enjin.ServiceInfo()
 		if listener == "" || listener == "0.0.0.0" {
 			listener = "localhost"
 		}
@@ -235,14 +234,13 @@ func (f *CFeature) AddSearchDocumentMapping(tag language.Tag, indexMapping *mapp
 	indexMapping.AddDocumentMapping(doctype, dm)
 }
 
-func (f *CFeature) IndexDocument(thing interface{}) (out interface{}, err error) {
-	pg, _ := thing.(*page.Page) // FIXME: this "thing" avoids package import loops
+func (f *CFeature) IndexDocument(pg feature.Page) (out interface{}, err error) {
 
 	var rendered string
 
-	if strings.HasSuffix(pg.Format, ".tmpl") {
+	if strings.HasSuffix(pg.Format(), ".tmpl") {
 		var buf bytes.Buffer
-		if tt, e := htmlTemplate.New("content.q.tmpl").Funcs(theme.DefaultFuncMap()).Parse(pg.Content); e != nil {
+		if tt, e := htmlTemplate.New("content.q.tmpl").Funcs(f.Enjin.MakeFuncMap(context.Context{}).AsHTML()).Parse(pg.Content()); e != nil {
 			err = fmt.Errorf("error parsing template: %v", e)
 			return
 		} else if e = tt.Execute(&buf, pg.Context); e != nil {
@@ -252,13 +250,13 @@ func (f *CFeature) IndexDocument(thing interface{}) (out interface{}, err error)
 			rendered = buf.String()
 		}
 	} else {
-		rendered = pg.Content
+		rendered = pg.Content()
 	}
 
-	doc := NewQuoteDocument(pg.Language, pg.Url, pg.Title)
+	doc := NewQuoteDocument(pg.Language(), pg.Url(), pg.Title())
 
-	doc.SetAuthor(pg.Context.Get("QuoteAuthor").(string))
-	doc.AddCategory(pg.Context.Get("QuoteCategories").([]string)...)
+	doc.SetAuthor(pg.Context().Get("QuoteAuthor").(string))
+	doc.AddCategory(pg.Context().Get("QuoteCategories").([]string)...)
 
 	if !beStrings.Empty(rendered) {
 		doc.AddContent(rendered)

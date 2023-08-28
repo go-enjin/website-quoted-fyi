@@ -28,11 +28,8 @@ import (
 	"github.com/go-enjin/golang-org-x-text/language"
 
 	"github.com/go-enjin/be/pkg/feature"
-	"github.com/go-enjin/be/pkg/fs"
-	"github.com/go-enjin/be/pkg/indexing"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/maps"
-	"github.com/go-enjin/be/pkg/page"
 	"github.com/go-enjin/be/pkg/request/argv"
 	beStrings "github.com/go-enjin/be/pkg/strings"
 
@@ -50,7 +47,7 @@ type Feature interface {
 	feature.Feature
 	feature.UseMiddleware
 	feature.PageTypeProcessor
-	indexing.PageIndexFeature
+	feature.PageIndexFeature
 }
 
 type MakeFeature interface {
@@ -74,6 +71,7 @@ func New() MakeFeature {
 func NewTagged(tag feature.Tag) MakeFeature {
 	f := new(CFeature)
 	f.Init(f)
+	f.PackageTag = Tag
 	f.FeatureTag = tag
 	f.authorNameByAuthorKey = xsync.NewMapOf[string]()
 	f.authorKeyByAuthorName = xsync.NewMapOf[string]()
@@ -117,9 +115,9 @@ func (f *CFeature) Use(s feature.System) feature.MiddlewareFn {
 	}
 }
 
-func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
+func (f *CFeature) AddToIndex(stub *feature.PageStub, p feature.Page) (err error) {
 
-	if p.Type != "quote" {
+	if p.Type() != "quote" {
 		return
 	}
 
@@ -128,8 +126,8 @@ func (f *CFeature) AddToIndex(stub *fs.PageStub, p *page.Page) (err error) {
 
 	f.numQuotes += 1
 
-	authorKey := p.Context.String("QuoteAuthorKey", "")
-	authorName := p.Context.String("QuoteAuthor", "")
+	authorKey := p.Context().String("QuoteAuthorKey", "")
+	authorName := p.Context().String("QuoteAuthor", "")
 
 	if authorKey == "" || authorName == "" {
 		// bad content?
@@ -184,18 +182,18 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 		selectedQuotes := f.Enjin.MatchQL(fmt.Sprintf(`(.QuoteAuthorKey == "%v")`, authorKey))
 		categoryLookup := make(map[string][]*quote.Quote)
 		for _, selectedQuote := range selectedQuotes {
-			if categories, ok := selectedQuote.Context.Get("QuoteCategories").([]string); ok {
+			if categories, ok := selectedQuote.Context().Get("QuoteCategories").([]string); ok {
 				for _, category := range categories {
 					found := false
 					for _, categoryQuote := range categoryLookup[category] {
-						if found = categoryQuote.Url == selectedQuote.Url; found {
+						if found = categoryQuote.Url == selectedQuote.Url(); found {
 							break
 						}
 					}
 					if !found {
 						categoryLookup[category] = append(categoryLookup[category], &quote.Quote{
-							Url:  selectedQuote.Url,
-							Hash: selectedQuote.Context.Get("QuoteHash").(string),
+							Url:  selectedQuote.Url(),
+							Hash: selectedQuote.Context().Get("QuoteHash").(string),
 						})
 					}
 				}
@@ -242,13 +240,13 @@ func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (proc
 
 		if authorPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!a/{key}"); authorPage != nil {
 			authorPage.SetSlugUrl("/a/" + authorKey)
-			authorPage.Context.SetSpecific("Title", "Quoted.FYI: author "+authorName)
-			authorPage.Context.SetSpecific("AuthorKey", authorKey)
-			authorPage.Context.SetSpecific("AuthorName", authorName)
-			authorPage.Context.SetSpecific("TotalQuotes", len(selectedQuotes))
-			authorPage.Context.SetSpecific("TotalTopics", len(categoryLookup))
-			authorPage.Context.SetSpecific("QuoteGroups", quoteGroups)
-			authorPage.Context.SetSpecific("QuoteOtherTopics", otherTopics)
+			authorPage.Context().SetSpecific("Title", "Quoted.FYI: author "+authorName)
+			authorPage.Context().SetSpecific("AuthorKey", authorKey)
+			authorPage.Context().SetSpecific("AuthorName", authorName)
+			authorPage.Context().SetSpecific("TotalQuotes", len(selectedQuotes))
+			authorPage.Context().SetSpecific("TotalTopics", len(categoryLookup))
+			authorPage.Context().SetSpecific("QuoteGroups", quoteGroups)
+			authorPage.Context().SetSpecific("QuoteOtherTopics", otherTopics)
 			if err := f.Enjin.ServePage(authorPage, w, r); err != nil {
 				log.ErrorF("error serving authors listing page: %v", err)
 			} else {
@@ -280,11 +278,11 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 
 		if listingPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!authors-key"); listingPage != nil {
 			listingPage.SetSlugUrl("/authors/" + groupChar)
-			listingPage.Context.SetSpecific("Authors", authors)
-			listingPage.Context.SetSpecific("AuthorLetters", authorLetters)
-			listingPage.Context.SetSpecific("NumAuthors", len(authors))
-			listingPage.Context.SetSpecific("AuthorCharacter", groupChar)
-			listingPage.Context.SetSpecific("TotalNumAuthors", f.authorNameByAuthorKey.Size())
+			listingPage.Context().SetSpecific("Authors", authors)
+			listingPage.Context().SetSpecific("AuthorLetters", authorLetters)
+			listingPage.Context().SetSpecific("NumAuthors", len(authors))
+			listingPage.Context().SetSpecific("AuthorCharacter", groupChar)
+			listingPage.Context().SetSpecific("TotalNumAuthors", f.authorNameByAuthorKey.Size())
 			if err := f.Enjin.ServePage(listingPage, w, r); err != nil {
 				log.ErrorF("error serving authors listing page: %v", err)
 			} else {
@@ -297,10 +295,10 @@ func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (pro
 	return
 }
 
-func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
+func (f *CFeature) ProcessRequestPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
 	// reqArgv := site.GetRequestArgv(r)
 
-	switch p.Type {
+	switch p.Type() {
 	case "authors":
 		pg, redirect, processed, err = f.ProcessGroupsPageType(r, p)
 	case "author":
@@ -308,33 +306,33 @@ func (f *CFeature) ProcessRequestPageType(r *http.Request, p *page.Page) (pg *pa
 	default:
 		//pg = p
 		//processed = true
-		p.Context.SetSpecific("NumQuotes", f.numQuotes)
-		p.Context.SetSpecific("NumAuthors", f.authorKeyByAuthorName.Size())
+		p.Context().SetSpecific("NumQuotes", f.numQuotes)
+		p.Context().SetSpecific("NumAuthors", f.authorKeyByAuthorName.Size())
 	}
 
 	return
 }
 
-func (f *CFeature) ProcessSinglePageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
+func (f *CFeature) ProcessSinglePageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
 
 	// log.WarnF("hit author page type: %v", p.Url)
 
 	return
 }
 
-func (f *CFeature) ProcessGroupsPageType(r *http.Request, p *page.Page) (pg *page.Page, redirect string, processed bool, err error) {
+func (f *CFeature) ProcessGroupsPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
 	authorGroups := make([]*quote.AuthorsGroup, 0)
 
-	authors := p.Context.Strings("Authors")
+	authors := p.Context().Strings("Authors")
 	if len(authors) == 0 {
-		p.Context.SetSpecific("NumAuthors", f.authorKeyByAuthorName.Size())
+		p.Context().SetSpecific("NumAuthors", f.authorKeyByAuthorName.Size())
 		var authorLetters []string
 		f.authorNamesByLetter.Range(func(letter string, _ []string) bool {
 			authorLetters = append(authorLetters, letter)
 			return true
 		})
 		sort.Sort(natural.StringSlice(authorLetters))
-		p.Context.SetSpecific("AuthorLetters", authorLetters)
+		p.Context().SetSpecific("AuthorLetters", authorLetters)
 		//pg = p
 		//processed = true
 		return
@@ -361,7 +359,7 @@ func (f *CFeature) ProcessGroupsPageType(r *http.Request, p *page.Page) (pg *pag
 		)
 	}
 
-	p.Context.SetSpecific("AuthorGroups", authorGroups)
+	p.Context().SetSpecific("AuthorGroups", authorGroups)
 
 	pg = p
 	processed = true
