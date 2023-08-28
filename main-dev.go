@@ -20,15 +20,16 @@ import (
 	"github.com/go-enjin/be/features/fs/content"
 	"github.com/go-enjin/be/features/fs/menu"
 	"github.com/go-enjin/be/features/fs/public"
+	"github.com/go-enjin/be/features/fs/themes"
 	"github.com/go-enjin/be/pkg/log"
 	"github.com/go-enjin/be/pkg/profiling"
-	"github.com/go-enjin/be/pkg/theme"
+	semantic "github.com/go-enjin/semantic-enjin-theme"
 )
 
 func init() {
 	// locals environment, early startup debug logging
-	// log.Config.LogLevel = log.LevelDebug
-	// log.Config.Apply()
+	log.Config.LogLevel = log.LevelDebug
+	log.Config.Apply()
 
 	profiling.Start()
 	fMenu = menu.New().MountLocalPath("menus", "menus").Make()
@@ -37,14 +38,9 @@ func init() {
 		MountLocalPath("/", "content").
 		AddToIndexProviders(gPqlFeature).
 		Make()
-}
-
-func quotedFyiTheme() (t *theme.Theme) {
-	var err error
-	if t, err = theme.NewLocal("enjin", "themes/quoted-fyi"); err != nil {
-		log.FatalF("error loading local theme: %v", err)
-	} else {
-		log.DebugF("loaded local theme: %v", t.Name)
-	}
-	return
+	fThemes = themes.New().
+		Include(semantic.Theme()).
+		LocalTheme("themes/quoted-fyi").
+		SetTheme("quoted-fyi").
+		Make()
 }

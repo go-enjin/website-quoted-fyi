@@ -22,9 +22,6 @@ import (
 	"github.com/go-enjin/be/features/fs/content"
 	"github.com/go-enjin/be/features/fs/menu"
 	"github.com/go-enjin/be/features/fs/public"
-
-	"github.com/go-enjin/be/pkg/log"
-	"github.com/go-enjin/be/pkg/theme"
 )
 
 //go:embed content/**
@@ -47,14 +44,9 @@ func init() {
 		MountEmbedPath("/", "content", contentFsWWW).
 		AddToIndexProviders(gPqlFeature).
 		Make()
-}
-
-func quotedFyiTheme() (t *theme.Theme) {
-	var err error
-	if t, err = theme.NewEmbed("enjin", "themes/quoted-fyi", themeFs); err != nil {
-		log.FatalF("error loading embed theme: %v", err)
-	} else {
-		log.DebugF("loaded embed theme: %v", t.Name)
-	}
-	return
+	fThemes = themes.New().
+		Include(semantic.Theme()).
+		EmbedTheme("themes/quoted-fyi", themeFs).
+		SetTheme("quoted-fyi").
+		Make()
 }

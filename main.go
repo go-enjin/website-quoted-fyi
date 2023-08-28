@@ -22,29 +22,21 @@ import (
 
 	"github.com/go-enjin/golang-org-x-text/language"
 
-	semantic "github.com/go-enjin/semantic-enjin-theme"
-
 	"github.com/go-enjin/be"
 	"github.com/go-enjin/be/drivers/kvs/gocache"
 	"github.com/go-enjin/be/drivers/kws"
 	"github.com/go-enjin/be/features/fs/content"
-	"github.com/go-enjin/be/features/log/papertrail"
-	"github.com/go-enjin/be/features/pages/formats"
+	"github.com/go-enjin/be/features/outputs/htmlify"
 	"github.com/go-enjin/be/features/pages/pql"
-	"github.com/go-enjin/be/features/pages/query"
 	"github.com/go-enjin/be/features/pages/robots"
 	"github.com/go-enjin/be/features/pages/search"
-	"github.com/go-enjin/be/features/requests/headers/proxy"
-	"github.com/go-enjin/be/features/user/auth/basic"
-	"github.com/go-enjin/be/features/user/base/htenv"
 	"github.com/go-enjin/be/pkg/cli/env"
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/lang"
 	"github.com/go-enjin/be/pkg/log"
 	bePath "github.com/go-enjin/be/pkg/path"
 	"github.com/go-enjin/be/pkg/profiling"
-	"github.com/go-enjin/be/pkg/userbase"
-
+	"github.com/go-enjin/be/presets/defaults"
 	"github.com/go-enjin/website-quoted-fyi/pkg/features/authors"
 	"github.com/go-enjin/website-quoted-fyi/pkg/features/build"
 	"github.com/go-enjin/website-quoted-fyi/pkg/features/q"
@@ -70,6 +62,7 @@ var (
 	fContent feature.Feature
 	fPublic  feature.Feature
 	fMenu    feature.Feature
+	fThemes  feature.Feature
 )
 
 func main() {
@@ -94,17 +87,29 @@ func main() {
 		SiteTagLine("Quoted for your information.").
 		SiteCopyrightName("Go-Enjin").
 		SiteCopyrightNotice("© 2023 All rights reserved").
-		AddTheme(semantic.Theme()).
-		AddTheme(quotedFyiTheme()).
-		SetTheme("quoted-fyi").
 		SiteTag("QF").
 		SiteDefaultLanguage(language.English).
 		SiteSupportedLanguages(language.English).
 		SiteLanguageMode(lang.NewPathMode().Make()).
+		AddPreset(defaults.New().
+			Prepend(
+				quote.New().Make(),
+				build.NewTagged(gBuildQuotesFeature).SetKeywordProvider(gKwsFeature).Make(),
+				words.New().SetKeywordProvider(gKwsFeature).Make(),
+				topics.New().Make(),
+				random.New().SetKeywordProvider(gKwsFeature).Make(),
+				authors.NewTagged(gAuthorsFeature).Make(),
+				search.New().SetSearchPath("/search").Make(),
+				qfSearch.New().Make(),
+			).
+			OmitTags(htmlify.Tag).
+			AddFormats(q.New().Make()).
+			Make()).
+		AddFeature(fThemes).
 		SetPublicAccess(
-			userbase.NewAction("enjin", "view", "page"),
-			userbase.NewAction("fs-content", "view", "page"),
-			userbase.NewAction("fs-content-quotes", "view", "page"),
+			feature.NewAction("enjin", "view", "page"),
+			feature.NewAction("fs-content", "view", "page"),
+			feature.NewAction("fs-content-quotes", "view", "page"),
 		).
 		AddFeature(gocache.NewTagged(gPqlKwsFeature).AddMemoryCache(gPqlKwsCache).Make()).
 		AddFeature(gocache.NewTagged(gKvsFeature).AddMemoryCache(gKvsCache).Make()).
@@ -121,23 +126,19 @@ func main() {
 			SetKeyValueCache(gPqlKwsFeature, gPqlKwsCache).
 			Make()).
 		AddFeature(kws.NewTagged(gKwsFeature).Make()).
-		AddFeature(proxy.New().Enable().Make()).
-		AddFeature(formats.New().Defaults().AddFormat(q.New().Make()).Make()).
-		AddFeature(quote.New().Make()).
-		AddFeature(build.NewTagged(gBuildQuotesFeature).SetKeywordProvider(gKwsFeature).Make()).
-		AddFeature(words.New().SetKeywordProvider(gKwsFeature).Make()).
-		AddFeature(topics.New().Make()).
-		AddFeature(random.New().SetKeywordProvider(gKwsFeature).Make()).
-		AddFeature(authors.NewTagged(gAuthorsFeature).Make()).
-		AddFeature(search.New().SetSearchPath("/search").Make()).
-		AddFeature(qfSearch.New().Make()).
-		AddFeature(query.New().Make()).
-		AddFeature(htenv.NewTagged("htenv").Make()).
-		AddFeature(basic.NewTagged("basic-auth").AddUserbase("htenv", "htenv", "htenv").Make()).
-		AddFeature(papertrail.Make()).
+		//AddFeature(quote.New().Make()).
+		//AddFeature(build.NewTagged(gBuildQuotesFeature).SetKeywordProvider(gKwsFeature).Make()).
+		//AddFeature(words.New().SetKeywordProvider(gKwsFeature).Make()).
+		//AddFeature(topics.New().Make()).
+		//AddFeature(random.New().SetKeywordProvider(gKwsFeature).Make()).
+		//AddFeature(authors.NewTagged(gAuthorsFeature).Make()).
+		//AddFeature(search.New().SetSearchPath("/search").Make()).
+		//AddFeature(qfSearch.New().Make()).
 		AddFeature(robots.New().
 			AddRuleGroup(robots.NewRuleGroup().
-				AddUserAgent("*").AddAllowed("/").Make(),
+				AddUserAgent("*").
+				AddAllowed("/").
+				Make(),
 			).Make()).
 		SetStatusPage(404, "/404").
 		SetStatusPage(500, "/500").
