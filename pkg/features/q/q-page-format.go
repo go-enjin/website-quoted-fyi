@@ -138,7 +138,13 @@ func (f *CFeature) Process(ctx context.Context, content string) (html template.H
 			buf.WriteString(string(input[last:group[0][0]]))
 		}
 		last = group[0][1]
-		value := string(input[group[0][0]:group[0][1]])
+		var value string
+		if len(input) < group[0][1] {
+			value = string(input[group[0][0]:])
+
+		} else {
+			value = string(input[group[0][0]:group[0][1]])
+		}
 		buf.WriteString(fmt.Sprintf(
 			`<a href="/w/%s">%s</a>`,
 			quote.FlattenContent(value),
