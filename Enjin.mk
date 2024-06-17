@@ -17,8 +17,14 @@
 #: uncomment to echo instead of execute
 #CMD=echo
 
-.PHONY: audit audit-% be-update build build-dev-run check clean
-.PHONY: con-% dev dist-clean help local
+ENJIN_MK_VERSION := v0.2.21
+
+#
+#: phony make targets
+#
+
+.PHONY: audit audit-% be-update build build-dev-run check clean locales
+.PHONY: con-% dev dist-clean help help-gopkgs local
 .PHONY: profile.cpu profile.mem release release-dev-run run stop tidy unlocal
 .PHONY: yarn-% _audit _enjenv _golang _nodejs
 .PHONY: _check_make_target _clean _enjenv_bin
@@ -30,9 +36,15 @@
 .PHONY: _yarn_tag_install
 .PHONY: list-make-targets
 
-ENJIN_MK_VERSION := v0.2.11
+#
+#: global make settings
+#
 
-SHELL = /bin/bash
+SHELL := /bin/bash
+
+#
+#: global enjin settings
+#
 
 ifeq ($(origin APP_NAME),undefined)
 APP_NAME := $(shell basename `pwd`)
@@ -40,24 +52,180 @@ endif
 APP_SUMMARY ?= Go-Enjin
 ENV_PREFIX  ?= BE
 APP_PREFIX  ?= ${USER}
+APP_COMMAND ?= .
 
 UNTAGGED_VERSION ?= v0.0.0
-
-BE_DEBUG ?= false
 
 LISTEN        ?=
 PORT          ?= 3334
 DEBUG         ?= ${BE_DEBUG}
 STRICT        ?= false
 DOMAIN        ?=
+
+THEMES_PATH  ?= themes
+CONTENT_PATH ?= content
+
+BE_CONSOLE_KEYS     ?=
+DEFAULT_CONSOLE_KEY ?=
+
+#
+#: enjin locale settings
+#
+
+ifndef SRC_LANG
+SRC_LANG  := en
+endif
+
+ifndef LANGUAGES
+LANGUAGES := en
+endif
+ifeq ($(filter en,$(LANGUAGES)),)
+LANGUAGES += en
+endif
+
+ifeq (${MAKE_LOCALES},true)
+MAKE_THEME_LOCALES   := true
+MAKE_SOURCE_LOCALES  := true
+MAKE_CONTENT_LOCALES := true
+else
+MAKE_THEME_LOCALES   ?= false
+MAKE_SOURCE_LOCALES  ?= false
+MAKE_CONTENT_LOCALES ?= false
+endif
+
+CONTENT_LOCALES_PATH  ?= ./locales-content
+
+#
+#: go-corelibs settings
+#
+
+AUTO_CORELIBS_KEYS ?= false
+
+#
+#: global go-enjin settings
+#
+
+GO_ENJIN_PKG ?= github.com/go-enjin/be
+
+BE_PATH       ?= ../be
+BE_LOCAL_PATH ?= ${BE_PATH}
+GE_LOCAL_PATH ?= ..
+CL_LOCAL_PATH ?= ../../go-corelibs
+GC_LOCAL_PATH ?= ../../go-curses
+
+BE_DEBUG ?= false
+
 DENY_DURATION ?= 86400
 
+DLV_PORT ?= 2345
+DLV_DEBUG ?=
+
+DLV_BIN := $(shell which dlv)
+
+#
+#: global enjin build settings
+#
+
 BUILD_TAGS        ?=
-BUILD_ARGV        ?=
+BUILD_ARGV        ?= ${APP_COMMAND}
 BUILD_LDFLAGS     ?=
 DEV_BUILD_TAGS    ?= ${BUILD_TAGS}
-DEV_BUILD_ARGV    ?=
+DEV_BUILD_ARGV    ?= ${BUILD_ARGV}
 DEV_BUILD_GCFLAGS ?=
+
+CLEAN      ?= ${APP_NAME} cpu.pprof mem.pprof
+DIST_CLEAN ?=
+EXTRA_CLEAN ?=
+
+EXTRA_BUILD_TARGET_DEPS ?=
+
+GOLANG ?= 1.21.0
+GO_MOD ?= 1021
+NODEJS ?=
+
+RELEASE_BUILD ?= false
+PRE_RELEASE_BUILD ?= false
+#
+#: custom go.mod locals and be-update targets
+#
+
+GOPKG_KEYS ?=
+
+# Basic Enjin Theme
+BUILT_IN_GOPKG_KEYS += _BASIC_THEME
+_BASIC_THEME_LABEL := Go-Enjin basic theme
+_BASIC_THEME_GO_PACKAGE ?= github.com/go-enjin/basic-enjin-theme
+_BASIC_THEME_LOCAL_PATH ?= ${GE_LOCAL_PATH}/basic-enjin-theme
+
+# Default Enjin Theme
+BUILT_IN_GOPKG_KEYS += _DEFAULT_THEME
+_DEFAULT_THEME_LABEL := Go-Enjin default theme
+_DEFAULT_THEME_GO_PACKAGE ?= github.com/go-enjin/default-enjin-theme
+_DEFAULT_THEME_LOCAL_PATH ?= ${GE_LOCAL_PATH}/default-enjin-theme
+
+# Semantic Enjin Theme
+BUILT_IN_GOPKG_KEYS += _SEMANTIC_THEME
+_SEMANTIC_THEME_LABEL := Go-Enjin semantic theme
+_SEMANTIC_THEME_GO_PACKAGE ?= github.com/go-enjin/semantic-enjin-theme
+_SEMANTIC_THEME_LOCAL_PATH ?= ${GE_LOCAL_PATH}/semantic-enjin-theme
+
+# Go-Enjin fork of text scanner package
+BUILT_IN_GOPKG_KEYS += _TEXT_SCANNER
+_TEXT_SCANNER_LABEL := Go-Enjin fork of text/scanner
+_TEXT_SCANNER_GO_PACKAGE ?= github.com/go-enjin/go-stdlib-text-scanner
+_TEXT_SCANNER_LOCAL_PATH ?= ${GE_LOCAL_PATH}/go-stdlib-text-scanner
+
+# Go-Enjin fork of times package
+BUILT_IN_GOPKG_KEYS += _TIMES
+_TIMES_LABEL := Go-Enjin fork of github.com/djherbis/times
+_TIMES_GO_PACKAGE ?= github.com/go-enjin/github-com-djherbis-times
+_TIMES_LOCAL_PATH ?= ${GE_LOCAL_PATH}/github-com-djherbis-times
+
+# Go-Enjin fork of atlas-gonnect package
+BUILT_IN_GOPKG_KEYS += _ATLAS_GONNECT
+_ATLAS_GONNECT_LABEL := Go-Enjin fork of github.com/craftamap/atlas-gonnect
+_ATLAS_GONNECT_GO_PACKAGE ?= github.com/go-enjin/github-com-craftamap-atlas-gonnect
+_ATLAS_GONNECT_LOCAL_PATH ?= ${GE_LOCAL_PATH}/github-com-craftamap-atlas-gonnect
+
+# Go-Enjin sass output feature
+BUILT_IN_GOPKG_KEYS += _SASS_OUTPUTS
+_SASS_OUTPUTS_LABEL := Go-Enjin SASS outputs feature
+_SASS_OUTPUTS_GO_PACKAGE ?= github.com/go-enjin/features-outputs-sass
+_SASS_OUTPUTS_LOCAL_PATH ?= ${GE_LOCAL_PATH}/features-outputs-sass
+
+# Go-Enjin gonnectian feature
+BUILT_IN_GOPKG_KEYS += _GONNECTIAN
+_GONNECTIAN_LABEL := Go-Enjin Atlassian Connect feature
+_GONNECTIAN_GO_PACKAGE ?= github.com/go-enjin/features-gonnectian
+_GONNECTIAN_LOCAL_PATH ?= ${GE_LOCAL_PATH}/features-gonnectian
+
+# Go-Enjin gonnectian console feature
+BUILT_IN_GOPKG_KEYS += _GONNECTIAN_CONSOLE
+_GONNECTIAN_CONSOLE_LABEL := Go-Enjin Atlassian Connect console feature
+_GONNECTIAN_CONSOLE_GO_PACKAGE ?= github.com/go-enjin/features-consoles-gonnectian
+_GONNECTIAN_CONSOLE_LOCAL_PATH ?= ${GE_LOCAL_PATH}/features-consoles-gonnectian
+
+# Go-Enjin starter apt site
+BUILT_IN_GOPKG_KEYS += _STARTER_APT
+_STARTER_APT_LABEL := Go-Enjin starter APT (debian packaging) site
+_STARTER_APT_GO_PACKAGE ?= github.com/go-enjin/starter-apt-enjin
+_STARTER_APT_LOCAL_PATH ?= ${GE_LOCAL_PATH}/starter-apt-enjin
+
+# Go-Curses CDK
+BUILT_IN_GOPKG_KEYS += _CDK
+_CDK_LABEL := Go-Curses Development Kit
+_CDK_GO_PACKAGE ?= github.com/go-curses/cdk
+_CDK_LOCAL_PATH ?= ${GC_LOCAL_PATH}/cdk
+
+# Go-Curses CTK
+BUILT_IN_GOPKG_KEYS += _CTK
+_CTK_LABEL := Go-Curses Tool Kit
+_CTK_GO_PACKAGE ?= github.com/go-curses/ctk
+_CTK_LOCAL_PATH ?= ${GC_LOCAL_PATH}/ctk
+
+#
+#: enjin preset helpers
+#
 
 PRESET_TAGS ?=
 
@@ -66,6 +234,7 @@ PRESET_TAGS += requests_deny
 PRESET_TAGS += htmlify
 PRESET_TAGS += header_proxy
 PRESET_TAGS += page_query
+PRESET_TAGS += page_status
 PRESET_TAGS += page_partials
 PRESET_TAGS += page_funcmaps
 PRESET_TAGS += srv_pages
@@ -79,6 +248,7 @@ PRESET_TAGS += user_auth_basic
 PRESET_TAGS += htmlify
 PRESET_TAGS += header_proxy
 PRESET_TAGS += page_query
+PRESET_TAGS += page_status
 PRESET_TAGS += page_partials
 PRESET_TAGS += page_funcmaps
 PRESET_TAGS += page_permalink
@@ -91,38 +261,14 @@ BUILD_TAGS     += ${PRESET_TAGS}
 DEV_BUILD_TAGS += ${PRESET_TAGS}
 endif
 
-GOPKG_KEYS ?=
-
-CLEAN      ?= ${APP_NAME} cpu.pprof mem.pprof
-DIST_CLEAN ?=
-EXTRA_CLEAN ?=
-
-EXTRA_BUILD_TARGET_DEPS ?=
-
-GOLANG ?= 1.20.1
-GO_MOD ?= 1020
-NODEJS ?=
-
-RELEASE_BUILD ?= false
-PRE_RELEASE_BUILD ?= false
-
-GO_ENJIN_PKG ?= github.com/go-enjin/be
-
-BE_PATH       ?= ../be
-BE_LOCAL_PATH ?= ${BE_PATH}
+#
+#: global internal settings
+#
 
 _INTERNAL_BUILD_LOG_ := /dev/null
 #_INTERNAL_BUILD_LOG_ := ./build.log
 
-DEFAULT_CONSOLE_KEY ?=
-BE_CONSOLE_KEYS ?=
-
 HEROKU_BIN := $(shell which heroku)
-
-DLV_PORT ?= 2345
-DLV_DEBUG ?=
-
-DLV_BIN := $(shell which dlv)
 
 ENJENV_PKG  ?= github.com/go-enjin/enjenv/cmd/enjenv@latest
 ENJENV_DIR_NAME ?= .enjenv
@@ -314,7 +460,7 @@ endef
 
 define _make_go_local
 echo "_make_go_local $(1) $(2)" >> ${_INTERNAL_BUILD_LOG_}; \
-echo "# go.mod local: $(1)"; \
+echo "# go.mod local: $(1) => $(2)"; \
 ${CMD} ${ENJENV_EXE} go-local "$(1)" "$(2)"
 endef
 
@@ -325,7 +471,8 @@ ${CMD} ${ENJENV_EXE} go-unlocal "$(1)"
 endef
 
 define _make_extra_pkgs
-$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$($(key)_GO_PACKAGE)@latest))
+$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$($(key)_GO_PACKAGE)@$(if $($(key)_LATEST_VER),$($(key)_LATEST_VER),latest))) \
+$(if ${_FOUND_CORELIBS},$(foreach name,${_FOUND_CORELIBS},github.com/go-corelibs/$(name)@latest))
 endef
 
 define _make_console_names
@@ -515,6 +662,17 @@ define _find_pid_tree
 `
 endef
 
+define _prune_null_locales
+if [ -d "$(1)" ]; then \
+		if [ -f "$(1)/en/out.gotext.json" ]; then \
+			if grep -q '"messages": null' "$(1)/en/out.gotext.json"; then \
+				echo "# $(1) translation messages not found, cleaning up"; \
+				rm -rfv "$(1)"; \
+			fi; \
+		fi; \
+	fi
+endef
+
 list-make-targets:
 	@LC_ALL=C \
 		$(MAKE) -pRrq -f $(firstword $(MAKEFILE_LIST)) : 2>/dev/null \
@@ -585,7 +743,7 @@ endif
 	@echo "  profile.cpu   make build dev with cpu profiling"
 	@echo "  profile.mem   make build dev with mem profiling"
 	@echo
-	@echo "  note: use 'make stop' from another terminal to end profiling"
+	@echo "  note: use 'make stop-profiling' from another terminal to end profiling"
 
 ifneq (${_DEPS_PRESENT},)
 	@echo
@@ -675,6 +833,7 @@ endif
 ifeq (${DLV_BIN},)
 	@echo "  install-dlv   run go install github.com/go-delve/delve@latest"
 endif
+	@echo "  help-gopkgs   prints a table of built-in GOPKG_KEYS values"
 
 	@echo
 	@echo "#############################################################"
@@ -706,6 +865,33 @@ endif
 	@echo "  coreutils     GNU coreutils is installed"
 	@echo
 	@echo "Enjin.mk Version: ${ENJIN_MK_VERSION}"
+
+help-gopkgs:
+	@echo "#############################################################"
+	@echo
+	@echo "GOPKG_KEYS is a Makfile setting to configure the local,"
+	@echo "unlocal and be-update build targets."
+	@echo
+	@echo "Example GOPKG_KEYS Makefile settings:"
+	@echo
+	@echo "GOPKG_KEYS += EXAMPLE"
+	@echo "EXAMPLE_LABEL := A custom label for a package"
+	@echo "EXAMPLE_GO_PACKAGE := example.com/custom/package"
+	@echo "EXAMPLE_LOCAL_PATH := ../path/to/package"
+	@echo
+	@echo "The built-in settings simplify the inclusion of common"
+	@echo "packages used during enjin development. Simply include"
+	@echo "one or more of the built-in keys and if necessary specify"
+	@echo "the path to the local git checkout of the given package."
+	@echo
+	@echo "Note that all of the options start with an underscore. This"
+	@echo "is only used to differentiate between custom settings and the"
+	@echo "built-in ones."
+	@echo
+	@echo "Built-in key options:"
+	@echo
+	@echo -e "$(foreach key,${BUILT_IN_GOPKG_KEYS},\n$(key);$($(key)_LABEL))" \
+		| column --table --table-noheadings --separator=";"
 
 _enjenv:
 	@if [ -z "${ENJENV_EXE}" -o ! -x "${ENJENV_EXE}" ]; then \
@@ -758,16 +944,25 @@ tidy: _golang
 		$(call _source_activate_run,go,mod,tidy); \
 	fi
 
+ifeq (${AUTO_CORELIBS_KEYS},true)
+_FOUND_CORELIBS := $(shell \
+	grep -h '"github.com/go-corelibs/' `find-go` \
+	| perl -pe 's!^[^"]*"github.com/go-corelibs/([^"/]*).*\s*$$!$$1\n!' \
+	| sort -u)
+endif
+
 local: _golang
 	@`echo "_make_extra_locals" >> ${_INTERNAL_BUILD_LOG_}`
 	@$(call _validate_extra_pkgs)
 	@$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_local,$($(key)_GO_PACKAGE),$($(key)_LOCAL_PATH));))
+	@$(if ${_FOUND_CORELIBS},$(foreach name,${_FOUND_CORELIBS},$(call _make_go_local,github.com/go-corelibs/$(name),${CL_LOCAL_PATH}/$(name));))
 	@$(call _make_go_local,${GO_ENJIN_PKG},${BE_LOCAL_PATH})
 
 unlocal: _golang
 	@`echo "_make_extra_unlocals" >> ${_INTERNAL_BUILD_LOG_}`
 	@$(call _validate_extra_pkgs)
 	@$(if ${GOPKG_KEYS},$(foreach key,${GOPKG_KEYS},$(call _make_go_unlocal,$($(key)_GO_PACKAGE));))
+	@$(if ${_FOUND_CORELIBS},$(foreach name,${_FOUND_CORELIBS},$(call _make_go_unlocal,github.com/go-corelibs/$(name));))
 	@$(call _make_go_unlocal,${GO_ENJIN_PKG})
 
 be-update: export GOPROXY=direct
@@ -916,7 +1111,7 @@ dev: run
 ifneq (${DLV_BIN},)
 .PHONY: dlv
 
-dlv: DLV_DEBUG=true
+dlv: export DLV_DEBUG=true
 dlv: dev
 else
 install-dlv: _golang
@@ -997,22 +1192,25 @@ release-dev-run: release
 pre-release-dev-run: pre-release
 	@( $(MAKE) dev 2>&1 ) | perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
 
+pre-release-dlv-run: export DLV_DEBUG=true
+pre-release-dlv-run: pre-release-dev-run
+
 stop:
 	@RUNNING_PIDS=$$(\
 		COLUMNS=1024 ps -x -a -o pid=,command= \
 			| egrep -v '(grep|tail)' \
-			| egrep "^\\s*[0-9]*\\s*\./${APP_NAME}\$$" \
+			| egrep "^\\s*[0-9]*\\s*(${PWD}|\.)/${APP_NAME}\$$" \
 			| awk '{print $$1}' \
 		); \
 		if [ -z "$${RUNNING_PIDS}" ]; then \
 			echo "# no ${APP_NAME} processes found, nothing to stop"; \
 		else \
 			for RP in $${RUNNING_PIDS}; do \
-				RP_WD=$$( lsof -a -p $${RP} -d cwd -F n | tail -1 | cut -c2- ); \
+				RP_WD=$$( lsof -a -p $${RP} -d cwd -F n 2>/dev/null | tail -1 | cut -c2- ); \
 				LINE=$$(\
 					COLUMNS=1024 ps -x -a -o pid=,command= \
 						| egrep -v '(grep|tail)' \
-						| egrep "^\\s*$${RP}\\s*\./${APP_NAME}\$$" \
+						| egrep "^\\s*$${RP}\\s*(${PWD}|\.)/${APP_NAME}\$$" \
 				); \
 				RP_TREE=$(call _find_pid_tree,$${RP}); \
 				echo "#######################################################"; \
@@ -1051,8 +1249,8 @@ stop:
 							done; \
 							echo "# terminated: $${RP_TREE}"; \
 						else \
-							${CMD} kill -TERM $${RP} 2> /dev/null; \
-							echo "# terminated: $${RP}"; \
+							${CMD} kill -INT $${RP} 2> /dev/null; \
+							echo "# interrupted: $${RP}"; \
 						fi; \
 					fi; \
 				else \
@@ -1076,13 +1274,13 @@ stop-profiling: STOP_PROFILING=true
 stop-profiling: stop
 
 profile.mem: export BE_PROFILE_MODE=mem
-profile.mem: export BE_PROFILE_PATH=.
+profile.mem: export BE_PROFILE_PATH=${PROFILE_PATH}
 profile.mem: build dev
 	@if [ -f mem.pprof ]; then \
 		echo "# <Enter> to load mem.pprof, <CTRL+c> to abort"; \
 		read JUNK; \
 		echo "# pprof service starting (:8080)"; \
-		bash -c 'set -m; ( go tool pprof -http=:8080 mem.pprof ) 2> /dev/null'; \
+		bash -c 'set -m; go tool pprof -http=:8080 mem.pprof'; \
 		echo ""; \
 		echo "# pprof service shutdown"; \
 	else \
@@ -1096,9 +1294,64 @@ profile.cpu: build dev
 		echo "# <Enter> to load cpu.pprof, <CTRL+c> to abort"; \
 		read JUNK; \
 		echo "# pprof service starting (:8080)"; \
-		bash -c 'set -m; ( go tool pprof -http=:8080 cpu.pprof ) 2> /dev/null'; \
+		bash -c 'set -m; go tool pprof -http=:8080 cpu.pprof'; \
 		echo ""; \
 		echo "# pprof service shutdown"; \
 	else \
 		echo "# missing cpu.pprof"; \
 	fi
+
+ifeq (${MAKE_SOURCE_LOCALES},true)
+locales: BE_PKG_LIST=`find * -name "*.go"`
+endif
+locales: LANG_ARG=`(for code in ${LANGUAGES}; do echo $${code}; done) | sort -u | perl -pe 's!\s+!,!msg' | perl -pe 's!,$$!!'`
+locales: export GOFLAGS=-tags=all
+locales:
+ifeq (${MAKE_THEME_LOCALES},true)
+	@echo "# generating theme locales"
+	@for theme in `ls -1 ./${THEMES_PATH}`; do \
+		if [ -d ./${THEMES_PATH}/$${theme}/layouts ]; then \
+			${CMD} enjenv be-update-locales \
+				-lang=${LANG_ARG} \
+				-out=./${THEMES_PATH}/$${theme}/locales \
+				./themes/$${theme}/layouts; \
+			$(call _prune_null_locales,./${THEMES_PATH}/$${theme}/locales); \
+		else \
+			echo "# $${theme} has no layouts, nothing to generate"; \
+		fi; \
+	done
+endif
+ifeq (${MAKE_CONTENT_LOCALES},true)
+	@if [ -d ./${CONTENT_PATH} ]; then \
+		echo "# generating ./${CONTENT_PATH} locales"; \
+		${CMD} enjenv be-update-locales \
+			-lang=${LANG_ARG} \
+			-out=${CONTENT_LOCALES_PATH} \
+			./${CONTENT_PATH}; \
+		$(call _prune_null_locales,${CONTENT_LOCALES_PATH}); \
+	fi
+endif
+ifeq (${MAKE_SOURCE_LOCALES},true)
+	@echo "# generating go source locales"
+	@${CMD} gotext \
+		-srclang=${SRC_LANG} \
+		update \
+		-lang=${LANG_ARG} \
+		-out=/dev/null \
+		${BE_PKG_LIST}
+	@$(call _prune_null_locales,locales)
+endif
+
+define _make_themes
+	for theme in themes/*; do \
+		pushd $${theme} > /dev/null; \
+		make $(1); \
+		popd > /dev/null; \
+	done
+endef
+
+build-themes:
+	@$(call _make_themes,build)
+
+release-themes:
+	@$(call _make_themes,release)
