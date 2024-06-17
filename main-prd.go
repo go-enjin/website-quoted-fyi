@@ -1,6 +1,6 @@
 //go:build prd
 
-// Copyright (c) 2022  The Go-Enjin Authors
+// Copyright (c) 2024  The Go-Enjin Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ import (
 	"github.com/go-enjin/be/features/fs/content"
 	"github.com/go-enjin/be/features/fs/menu"
 	"github.com/go-enjin/be/features/fs/public"
+	"github.com/go-enjin/be/features/fs/themes"
+	semantic "github.com/go-enjin/semantic-enjin-theme"
 )
 
 //go:embed content/**
@@ -34,7 +36,6 @@ var publicFs embed.FS
 var menuFsWWW embed.FS
 
 //go:embed themes/**
-//go:embed themes/*/layouts/_default/**
 var themeFs embed.FS
 
 func init() {
@@ -42,7 +43,7 @@ func init() {
 	fPublic = public.New().MountEmbedPath("/", "public", publicFs).Make()
 	fContent = content.New().
 		MountEmbedPath("/", "content", contentFsWWW).
-		AddToIndexProviders(gPqlFeature).
+		AddToIndexProviders(gEqlFeature).
 		Make()
 	fThemes = themes.New().
 		Include(semantic.Theme()).

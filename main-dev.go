@@ -1,6 +1,6 @@
 //go:build dev || all
 
-// Copyright (c) 2022  The Go-Enjin Authors
+// Copyright (c) 2024  The Go-Enjin Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ func init() {
 	fPublic = public.New().MountLocalPath("/", "public").Make()
 	fContent = content.New().
 		MountLocalPath("/", "content").
-		AddToIndexProviders(gPqlFeature).
+		AddToIndexProviders(gEqlFeature).
 		Make()
 	fThemes = themes.New().
 		Include(semantic.Theme()).
