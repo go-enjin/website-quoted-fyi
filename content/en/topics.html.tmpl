@@ -1,18 +1,16 @@
 +++
-type = "query"
+type = "page"
 title = "Quoted.FYI: Topics"
 searchable = "false"
 sitemap-ignored = "true"
-[select]
-    topics = "SELECT DISTINCT .QuoteCategories"
 +++
 <header>
-    <h2>there are {{ (len .Selected.Topics) | intcomma }} <a href="/topics/">topics</a></h2>
+    <h2>there are {{ intcomma .NumTopics  }} <a href="/topics/">topics</a></h2>
     <h3>quoted for your information...</h3>
     <aside>
         <div>[select a page of things]</div>
         <ul>
-            {{- range $idx,$letter := (sortedFirstLetters .Selected.Topics) }}
+            {{- range $idx,$letter := .TopicLetters }}
                 <li><a href="/topics/{{ $letter }}/">{{ $letter }}</a></li>
             {{- end }}
         </ul>
