@@ -4,9 +4,6 @@ title = "Quoted.FYI: Main"
 description = "Main content quoted for your information..."
 share-twitter-url = "https://twitter.com/share?url=https://quoted.fyi&text=Quoted%20for%20your%20information%20in%20exploring%20curious%20things.&via=quoted_fyi&hashtags=QuotedFYI"
 share-email-url = "mailto:?subject=Quoted.FYI%20main%20content&body=Quoted%20for%20your%20information%20in%20exploring%20curious%20things.%0A%0Ahttps://quoted.fyi"
-url = "/"
-[select]
-    count-topics = "SELECT COUNT DISTINCT .QuoteCategories"
 +++
 <header>
     <h2><a href="/">Main</a> content</h2>
@@ -16,12 +13,13 @@ url = "/"
     <blockquote>
         <h4>in exploring</h4>
         <p>
-            {{ .NumQuotes | numberAsInt | intcomma }} quotes from {{ .NumAuthors | numberAsInt | intcomma }}
-            <a href="/authors/">Authors</a> (sorted by last name),
-            covering {{ .Selected.CountTopics | numberAsInt | intcomma }}
-            <a href="/topics/">Topics</a> (grouped alphabetically),
-            jumping around <a href="/random/">Random</a> things or curiously
-            <a href="/build/">Build</a> up to a quote one word at a time.
+            {{ .NumWords | numberAsInt | intcomma }} <a href="/search">words</a> used in
+            {{ .NumQuotes | numberAsInt | intcomma }} quotes from
+            {{ .NumAuthors | numberAsInt | intcomma }} <a href="/authors/">authors</a> (sorted by last name),
+            covering {{ .NumTopics | numberAsInt | intcomma }} <a href="/topics/">topics</a> (grouped alphabetically),
+            jumping around <a href="/random/">random</a> things
+            or curiously <a href="/build/">building</a> up to a quote (one word at a time),
+            starting with a list of {{ .NumFirstWords | numberAsInt | intcomma }} first words.
         </p>
         <footer>
             curious things<br/>
