@@ -3,3 +3,7 @@
 /quotes*
 /be-quoted-fyi
 /_data
+/*.db
+/*.db-journal
+/*.eql
+/*.pprof
