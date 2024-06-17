@@ -4,5 +4,12 @@
         <input type="hidden" name="nonce" value="{{ Nonce "site-search-form" }}" />
         <input type="text" name="query" placeholder="Search" value="{{ .SiteSearchQuery | asHTML }}" />
     </form>
-    <nav><a href="/build/">build</a>, <a href="/random/">random</a>, <a href="/authors/">authors</a>, <a href="/topics/">topics</a> and <a href="/about/">about</a>.</nav>
+    <nav>
+        <span><a href="/build/">build</a>,</span>
+        <span><a href="/random/">random</a>,</span>
+        <span><a href="/authors/">authors</a>,</span>
+        <span><a href="/topics/">topics</a></span>
+        <span>and</span>
+        <span><a href="/about/">about</a>.</span>
+    </nav>
 </header>
