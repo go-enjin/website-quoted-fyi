@@ -19,10 +19,12 @@ package main
 import (
 	"embed"
 
+	"github.com/go-enjin/be/drivers/kvs/gocache"
 	"github.com/go-enjin/be/features/fs/content"
 	"github.com/go-enjin/be/features/fs/menu"
 	"github.com/go-enjin/be/features/fs/public"
 	"github.com/go-enjin/be/features/fs/themes"
+	"github.com/go-enjin/be/features/srv/factories/nonces"
 	semantic "github.com/go-enjin/semantic-enjin-theme"
 )
 
@@ -50,4 +52,7 @@ func init() {
 		EmbedTheme("themes/quoted-fyi", themeFs).
 		SetTheme("quoted-fyi").
 		Make()
+
+	fGocache = gocache.NewTagged(gKvsFeature).AddRedisCache(gKvsName).Make()
+	fNonces = nonces.New().SetKeyValueCache(gKvsFeature, gKvsName).Make()
 }

@@ -24,13 +24,11 @@ import (
 	clPath "github.com/go-corelibs/path"
 	"github.com/go-corelibs/x-text/language"
 	"github.com/go-enjin/be"
-	"github.com/go-enjin/be/drivers/kvs/gocache"
 	"github.com/go-enjin/be/features/fs/content"
 	"github.com/go-enjin/be/features/outputs/htmlify"
 	"github.com/go-enjin/be/features/pages/robots"
 	"github.com/go-enjin/be/features/pages/search"
 	"github.com/go-enjin/be/features/srv/eql"
-	"github.com/go-enjin/be/features/srv/factories/nonces"
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/lang"
 	"github.com/go-enjin/be/pkg/log"
@@ -46,9 +44,9 @@ import (
 )
 
 const (
-	gEqlFeature         = "eql"
-	gBuildQuotesFeature = "build-quotes-feature"
-	gAuthorsFeature     = "authors-feature"
+	gEqlFeature = "eql"
+	gKvsFeature = "qf-kvs"
+	gKvsName    = "qfyi"
 )
 
 var (
@@ -56,6 +54,8 @@ var (
 	fPublic  feature.Feature
 	fMenu    feature.Feature
 	fThemes  feature.Feature
+	fGocache feature.Feature
+	fNonces  feature.Feature
 )
 
 func main() {
@@ -95,6 +95,8 @@ func main() {
 			feature.NewAction("fs-content-quotes", "view", "page"),
 		).
 		AddFeature(
+			fGocache,
+			fNonces,
 			eql.NewTagged(gEqlFeature).
 				Including(build.Tag, words.Tag, topics.Tag, authors.Tag, q.Tag).
 				Make(),
