@@ -77,10 +77,10 @@ func main() {
 
 	enjin := be.New().
 		SiteName("Quoted.Fyi").
-		SiteTagLine("Quoted for your information.").
-		SiteCopyrightName("Go-Enjin").
-		SiteCopyrightNotice("© 2024 All rights reserved").
 		SiteTag("QF").
+		SiteTagLine("Quoted for your information.").
+		SiteCopyrightName("Quoted.FYI").
+		SiteCopyrightNotice("All rights reserved.").
 		SiteDefaultLanguage(language.English).
 		SiteSupportedLanguages(language.English).
 		SiteLanguageMode(lang.NewPathMode().Make()).
