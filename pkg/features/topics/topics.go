@@ -1,4 +1,4 @@
-// Copyright (c) 2022  The Go-Enjin Authors
+// Copyright (c) 2024  The Go-Enjin Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,20 +18,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/iancoleman/strcase"
 	"github.com/maruel/natural"
 	"github.com/urfave/cli/v2"
 
+	"github.com/go-corelibs/rxp"
 	"github.com/go-enjin/be/pkg/feature"
 	"github.com/go-enjin/be/pkg/log"
-	"github.com/go-enjin/be/pkg/maps"
 	"github.com/go-enjin/be/pkg/request/argv"
-	"github.com/go-enjin/be/pkg/slices"
-	"github.com/go-enjin/website-quoted-fyi/pkg/quote"
+	"github.com/go-enjin/website-quoted-fyi/pkg/features/dbh"
 )
 
 var (
@@ -45,14 +42,21 @@ type Feature interface {
 	feature.Feature
 	feature.UseMiddleware
 	feature.PageTypeProcessor
-}
-
-type CFeature struct {
-	feature.CFeature
+	feature.QueryIndexSourceFeature
 }
 
 type MakeFeature interface {
 	Make() Feature
+}
+
+type CFeature struct {
+	feature.CFeature
+
+	eql feature.QueryIndexFeature
+	dbh dbh.Feature
+
+	totalNumTopics int
+	topicLetters   []string
 }
 
 func New() MakeFeature {
@@ -60,6 +64,7 @@ func New() MakeFeature {
 	f.Init(f)
 	f.PackageTag = Tag
 	f.FeatureTag = Tag
+	f.CFeature.Construct(f)
 	return f
 }
 
@@ -77,192 +82,116 @@ func (f *CFeature) Setup(enjin feature.Internals) {
 
 func (f *CFeature) Startup(ctx *cli.Context) (err error) {
 	err = f.CFeature.Startup(ctx)
+
+	if found := f.Enjin.GetQueryIndexFeatures(); len(found) > 0 {
+		f.eql = found[0]
+	} else {
+		err = fmt.Errorf("%v feature requires at least one feature.QueryIndexFeature", f.Tag())
+		return
+	}
+
+	if f.dbh = feature.FirstTyped[dbh.Feature](f.Enjin.Features().List()); f.dbh == nil {
+		err = fmt.Errorf("%v features requires dbh.Feature", f.Tag())
+		return
+	}
+
 	return
 }
+
+func (f *CFeature) PostStartup(ctx *cli.Context) (err error) {
+	// list of topic letters, sorted naturally
+	if _, results, ee := f.eql.PerformLookup(`LOOKUP DISTINCT topic.Letter`); ee != nil {
+		err = fmt.Errorf("error getting list of topic letters: %w", ee)
+		return
+	} else if results.Len() == 0 {
+		err = fmt.Errorf("topic letters not found")
+		return
+	} else {
+		f.topicLetters = results.StringValues("letter")
+		sort.Sort(natural.StringSlice(f.topicLetters))
+	}
+
+	// total number of topics indexed
+	if _, results, ee := f.eql.PerformLookup(`LOOKUP COUNT topic.Topic AS total`); ee != nil {
+		err = fmt.Errorf("error getting count of topics: %w", ee)
+		return
+	} else if results.Len() == 0 {
+		err = fmt.Errorf("topics not found")
+		return
+	} else {
+		f.totalNumTopics = results.FirstIntValue("total")
+	}
+
+	log.InfoF("found topic letters: %d, total: %d", len(f.topicLetters), f.totalNumTopics)
+	gStartupCache.Close()
+	gStartupCache = nil
+	return
+}
+
+var (
+
+	// ^/t/([^/]+)/??$
+	rxPagePath = rxp.Pattern{}.
+			Caret().
+			Text("/t/").
+			Not(rxp.Text("/"), "+", "c").
+			Text("/", "??").
+			Dollar()
+
+	// ^/topics/([:alnum:])?/??
+	// ^/topics/([a-zA-Z0-9])?/??
+	rxGroupPath = rxp.Pattern{}.
+			Caret().
+			Text("/topics/").
+			Alnum("?", "c").
+			Text("/", "??").
+			Dollar()
+)
 
 func (f *CFeature) Use(s feature.System) feature.MiddlewareFn {
 	log.DebugF("including quote topics middleware")
 	return func(next http.Handler) (this http.Handler) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
+			if unescaped, err := url.PathUnescape(path); err == nil {
+				path = unescaped
+			}
+
+			switch path {
+			case "/t", "/t/":
+				reqArgv := argv.Get(r)
+				reqArgv.Path = "/topics/"
+				f.Enjin.ServeRedirect(reqArgv.String(), w, r)
+				return
+			}
 
 			switch {
-			case f.ProcessPagePath(w, r):
+
+			case rxPagePath.MatchString(path):
+				if m := rxPagePath.FindAllStringSubmatch(path, 1); len(m[0]) == 2 {
+					topic := strings.ToLower(m[0][1])
+					topic, _ = url.PathUnescape(topic)
+					f.ProcessPagePath(topic, w, r)
+					return
+				}
+				reqArgv := argv.Get(r)
+				reqArgv.Path = "/topics/"
+				f.Enjin.ServeRedirect(reqArgv.String(), w, r)
 				return
-			case f.ProcessGroupPath(w, r):
+
+			case rxGroupPath.MatchString(path):
+				if m := rxGroupPath.FindAllStringSubmatch(path, 1); len(m[0]) == 2 {
+					groupChar := strings.ToLower(m[0][1])
+					f.ProcessGroupPath(groupChar, w, r)
+					return
+				}
+				reqArgv := argv.Get(r)
+				reqArgv.Path = "/topics/"
+				f.Enjin.ServeRedirect(reqArgv.String(), w, r)
 				return
 			}
 
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-var RxPagePath = regexp.MustCompile(`^/t/([^/]+)/??`)
-
-func (f *CFeature) ProcessPagePath(w http.ResponseWriter, r *http.Request) (processed bool) {
-	switch r.URL.Path {
-	case "/t", "/t/":
-		reqArgv := argv.DecodeHttpRequest(r)
-		reqArgv.Path = "/topics/"
-		f.Enjin.ServeRedirect(reqArgv.String(), w, r)
-		processed = true
-		return
-	}
-	if RxPagePath.MatchString(r.URL.Path) {
-		m := RxPagePath.FindAllStringSubmatch(r.URL.Path, 1)
-		topic := strings.ToLower(m[0][1])
-		topic, _ = url.PathUnescape(topic)
-		topicKey := strcase.ToSnake(topic)
-		// log.WarnF("hit topic page: %v", topic)
-
-		selectedQuotes := f.Enjin.MatchQL(fmt.Sprintf(`(.QuoteCategoryKeys =~ "%v")`, topicKey))
-		// log.WarnF("selected topics: %v", selectedQuotes)
-
-		authorLookup := make(map[string][]*quote.Quote)
-		for _, selectedQuote := range selectedQuotes {
-			authorName, _ := selectedQuote.Context().Get("QuoteAuthor").(string)
-			authorLookup[authorName] = append(authorLookup[authorName], &quote.Quote{
-				Url:  selectedQuote.Url(),
-				Hash: selectedQuote.Context().Get("QuoteHash").(string),
-			})
-		}
-
-		var topicAuthors []*quote.AuthorsGroup
-		var currentAuthorGroup *quote.AuthorsGroup
-		for _, authorName := range maps.SortedKeysByLastName(authorLookup) {
-			groupKey := quote.GetLastNameCharacter(authorName)
-			if currentAuthorGroup == nil {
-				currentAuthorGroup = &quote.AuthorsGroup{
-					Key: groupKey,
-				}
-			} else if groupKey != currentAuthorGroup.Key {
-				topicAuthors = append(topicAuthors, currentAuthorGroup)
-				currentAuthorGroup = &quote.AuthorsGroup{
-					Key: groupKey,
-				}
-			}
-			authorKey := strcase.ToSnake(authorName)
-			currentAuthorGroup.Authors = append(currentAuthorGroup.Authors, &quote.Author{
-				Url:    "/a/" + authorKey,
-				Key:    authorKey,
-				Name:   authorName,
-				Quotes: authorLookup[authorName],
-			})
-		}
-		if currentAuthorGroup != nil {
-			topicAuthors = append(topicAuthors, currentAuthorGroup)
-			currentAuthorGroup = nil
-		}
-
-		if topicPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!t/{key}"); topicPage != nil {
-			topicPage.SetSlugUrl("/t/" + topic)
-			topicPage.Context().SetSpecific("Title", "Quoted.FYI: topic "+topic)
-			topicPage.Context().SetSpecific("Topic", topic)
-			topicPage.Context().SetSpecific("TotalQuotes", len(selectedQuotes))
-			topicPage.Context().SetSpecific("TotalAuthors", len(authorLookup))
-			topicPage.Context().SetSpecific("TopicAuthors", topicAuthors)
-			if err := f.Enjin.ServePage(topicPage, w, r); err != nil {
-				log.ErrorF("error serving topics listing page: %v", err)
-			} else {
-				processed = true
-			}
-		}
-	}
-	return
-}
-
-var RxGroupPath = regexp.MustCompile(`^/topics/([a-zA-Z0-9])?/??`)
-
-func (f *CFeature) ProcessGroupPath(w http.ResponseWriter, r *http.Request) (processed bool) {
-	if RxGroupPath.MatchString(r.URL.Path) {
-		m := RxGroupPath.FindAllStringSubmatch(r.URL.Path, 1)
-		groupChar := strings.ToLower(m[0][1])
-		// log.WarnF("hit topics group: %v", groupChar)
-		// results := f.Enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
-		results := f.Enjin.SelectQL(`SELECT DISTINCT .QuoteCategories`)
-		// log.WarnF("results: %#v", results)
-		var topics, topicLetters []string
-		var totalNumTopics int
-		if present, ok := results["QuoteCategories"].([]interface{}); ok {
-			// log.WarnF("num topics: %v", len(present))
-			for _, thing := range present {
-				if topic, ok := thing.(string); ok {
-					totalNumTopics += 1
-					if topic == "" {
-						continue
-					}
-					fc := strings.ToLower(string(topic[0]))
-					if !slices.Within(fc, topicLetters) {
-						topicLetters = append(topicLetters, fc)
-					}
-					if fc == groupChar {
-						topics = append(topics, topic)
-					}
-				}
-			}
-		}
-
-		sort.Sort(natural.StringSlice(topics))
-		sort.Sort(natural.StringSlice(topicLetters))
-
-		topicLookup := make(map[string]*quote.TopicAuthorsGroup)
-		for _, topic := range topics {
-			key := quote.GetFirstCharacters(3, topic)
-			if _, exists := topicLookup[key]; !exists {
-				topicLookup[key] = &quote.TopicAuthorsGroup{
-					Key: key,
-				}
-			}
-			topicLookup[key].Topics = append(topicLookup[key].Topics, &quote.TopicAuthors{
-				Key:  strcase.ToSnake(topic),
-				Name: topic,
-			})
-		}
-
-		topicGroups := make([]*quote.TopicAuthorsGroup, 0)
-		for _, key := range maps.SortedKeys(topicLookup) {
-			topicGroups = append(topicGroups, topicLookup[key])
-		}
-
-		if listingPage := f.Enjin.FindPage(f.Enjin.SiteDefaultLanguage(), "!topics/{key}"); listingPage != nil {
-			listingPage.SetSlugUrl("/topics/" + groupChar)
-			listingPage.Context().SetSpecific("Topics", topics)
-			listingPage.Context().SetSpecific("TopicLetters", topicLetters)
-			listingPage.Context().SetSpecific("NumTopics", len(topics))
-			listingPage.Context().SetSpecific("TopicGroups", topicGroups)
-			listingPage.Context().SetSpecific("TopicCharacter", groupChar)
-			listingPage.Context().SetSpecific("TotalNumTopics", totalNumTopics)
-			if err := f.Enjin.ServePage(listingPage, w, r); err != nil {
-				log.ErrorF("error serving topics listing page: %v", err)
-			} else {
-				processed = true
-			}
-		}
-	}
-	return
-}
-
-func (f *CFeature) ProcessRequestPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
-	// reqArgv := site.GetRequestArgv(r)
-
-	switch p.Type() {
-	case "topics":
-		pg, redirect, processed, err = f.ProcessGroupsPageType(r, p)
-	case "topic":
-		pg, redirect, processed, err = f.ProcessSinglePageType(r, p)
-	}
-
-	return
-}
-
-func (f *CFeature) ProcessSinglePageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit topic page type: %v", p.Url())
-	return
-}
-
-func (f *CFeature) ProcessGroupsPageType(r *http.Request, p feature.Page) (pg feature.Page, redirect string, processed bool, err error) {
-	// log.WarnF("hit topic group type: %v", p.Url())
-	pg = p
-	processed = true
-	return
 }
