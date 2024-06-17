@@ -1,33 +1,22 @@
-/* Copyright (c) 2022  The Go-Enjin Authors */
-/* */
-/* Licensed under the Apache License, Version 2.0 (the "License"); */
-/* you may not use this file except in compliance with the License. */
-/* You may obtain a copy of the License at */
-/* */
-/*     http://www.apache.org/licenses/LICENSE-2.0 */
-/* */
-/* Unless required by applicable law or agreed to in writing, software */
-/* distributed under the License is distributed on an "AS IS" BASIS, */
-/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. */
-/* See the License for the specific language governing permissions and */
-/* limitations under the License. */
+/*
+ * Copyright (c) 2024  The Go-Enjin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 body > main {
     min-height: 77vh;
 }
-
-/* Quoted.FYI Stylesheet */
-
-/*
-:root {
-  --colour-bg: #ffffff;
-  --colour-fg: #000000;
-  --colour-accent: #888888;
-  --colour-faded: #eeeeee;
-  --colour-lighter: #444444;
-  --colour-light: #333333;
-}
-*/
 
 #browser-unsupported {
   display: none;
@@ -50,18 +39,9 @@ body > main {
   font-weight: bold;
 }
 
-/* IE does not support CSS var() or play nice with flex boxes */
-/*
-@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-  #browser-unsupported {
-    display: block;
-  }
-}
-*/
-
 html, body {
-  background: #ffffff /*var(--colour-bg)*/;
-  color: #888888 /*var(--colour-accent)*/;
+  background: #ffffff;
+  color: #888888;
   position: relative;
   font-family: monospace;
   width: 100vw;
@@ -78,16 +58,16 @@ a:hover,
 a:visited,
 a:focus {
   text-decoration: none;
-  color: #000000 /*var(--colour-fg)*/;
+  color: #000000;
 }
 
 a.active {
   font-weight: bold;
-  border-bottom: 1px solid #888888 /*var(--colour-accent)*/;
+  border-bottom: 1px solid #888888;
 }
 
 blockquote a:visited {
-  color: #444444 /*var(--colour-lighter)*/;
+  color: #444444;
 }
 
 body > a.jump {
@@ -98,14 +78,14 @@ body > a.jump {
   z-index: 100;
   width: 2rem;
   height: 2rem;
-  background: #333333 /*var(--colour-light)*/;
-  color: #ffffff /*var(--colour-bg)*/;
+  background: #333333;
+  color: #ffffff;
   text-align: center;
   font-size: 0.9rem;
   line-height: 1rem;
   border-radius: 50%;
   padding: 0.5rem;
-  border: 1px dotted #000000 /*var(--colour-fg)*/;
+  border: 1px dotted #000000;
 }
 
 body > header,
@@ -116,7 +96,7 @@ body > footer {
 }
 
 body > header {
-  border-bottom: 1px solid #000000 /*var(--colour-fg)*/;
+  border-bottom: 1px solid #000000;
   position: relative;
 }
 
@@ -129,7 +109,7 @@ body > header > h1 {
 }
 
 body > header > nav {
-  border-top: 1px solid #000000 /*var(--colour-fg)*/;
+  border-top: 1px solid #000000;
   font-size: 1rem;
   line-height: 1.5rem;
   text-align: right;
@@ -152,7 +132,7 @@ body > header > form > input[name="query"],
 body > header > form > input[name="query"]:focus {
   display: inline-block;
   border: none;
-  border-bottom: 1px solid #000000 /*var(--colour-fg)*/;
+  border-bottom: 1px solid #000000;
   margin: 0;
   padding: 0;
   font-size: 1rem;
@@ -167,13 +147,13 @@ form > blockquote > p {
 form input[name="query"].large {
   width: 98%;
   border: none;
-  border-bottom: 1px solid #000000 /*var(--colour-fg)*/;
+  border-bottom: 1px solid #000000;
 }
 
 body > footer {
   margin-top: 80px;
   padding-bottom: 40px;
-  border-top: 1px solid #000000 /*var(--colour-fg)*/;
+  border-top: 1px solid #000000;
   text-align: center;
 }
 
@@ -230,7 +210,7 @@ article > header > aside > div {
   width: 50%;
   font-size: 0.75rem;
   padding: 0.25rem;
-  border-top: 1px solid #eeeeee /*var(--colour-faded)*/;
+  border-top: 1px solid #eeeeee;
 }
 
 article > header > aside > ul {
@@ -301,7 +281,7 @@ blockquote ul {
   font-weight: normal;
   line-height: 1.3rem;
   margin: 0;
-  border: 2px solid #888888 /*var(--colour-accent)*/;
+  border: 2px solid #888888;
   border: solid 2px;
   border-radius:20px;
   padding: 25px;
@@ -311,7 +291,7 @@ blockquote p:after,
 blockquote ul:after {
   content:"";
   position: absolute;
-  border: 2px solid #888888 /*var(--colour-accent)*/;
+  border: 2px solid #888888;
   border-radius: 0 50px 0 0;
   width: 60px;
   height: 60px;
@@ -327,7 +307,7 @@ blockquote ul:before {
   content:"";
   position: absolute;
   width: 80px;
-  border: 6px solid #ffffff /*var(--colour-bg)*/;
+  border: 6px solid #ffffff;
   bottom: -3px;
   left: 50px;
   z-index: 2;
@@ -336,15 +316,15 @@ blockquote ul:before {
 blockquote h4 {
   display: inline-block;
   font-weight: bold;
-  color: #888888 /*var(--colour-accent)*/;
-  background: #ffffff /*var(--colour-bg)*/;
+  color: #888888;
+  background: #ffffff;
   width: 100%;
   padding: 0.25rem;
   margin-top: 0;
 }
 :target blockquote h4 {
-  background: #888888 /*var(--colour-accent)*/;
-  color: #ffffff /*var(--colour-bg)*/;
+  background: #888888;
+  color: #ffffff;
 }
 
 /* Blockquote subheader */
