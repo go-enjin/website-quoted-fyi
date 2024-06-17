@@ -8,10 +8,12 @@ sitemap-ignored = "true"
 +++
 <article class="{{ if gt .NumNextWordGroups 1 }}list{{ else }}single{{ end }}">
     <header>
-        {{- if eq .NumBuiltQuotes 1 }}
+        {{- if eq .NumBuiltQuotes 0 }}
+            <h2><a href="/build/">Breaking</a> upon: "{{ range $idx,$link := .BuildPathLinks }}{{ if gt $idx 0 }} {{ end }}<a href="/b/{{ $link.Path }}">{{ $link.Word }}</a>{{ end }}"</h2>
+        {{- else if eq .NumBuiltQuotes 1 }}
             <h2><a href="/build/">Built</a> up to: "{{ range $idx,$link := .BuildPathLinks }}{{ if gt $idx 0 }} {{ end }}<a href="/b/{{ $link.Path }}">{{ $link.Word }}</a>{{ end }}"</h2>
             <h3>and found singular specificity</h3>
-        {{- else if and (gt .NumBuiltQuotes 1) (eq .NumNextWordGroups 0) }}
+        {{- else if and (gt .NumBuiltQuotes 1) (le .NumNextWordGroups 1) }}
             <h2><a href="/build/">Built</a> up to: "{{ range $idx,$link := .BuildPathLinks }}{{ if gt $idx 0 }} {{ end }}<a href="/b/{{ $link.Path }}">{{ $link.Word }}</a>{{ end }}"</h2>
             <h3>and found plural specificity</h3>
         {{- else }}
@@ -32,7 +34,18 @@ sitemap-ignored = "true"
         <aside><div>[next words...]</div></aside>
         {{- end }}
     </header>
-    {{- if and (ne .NumBuiltQuotes 1) (ne .NumNextWordGroups 0) }}
+    {{- if eq .NumBuiltQuotes 0 }}
+        <section>
+            <blockquote>
+                <h4>no quotes begin with:</h4>
+                <ul>
+                    <li>{{ range $idx,$link := .BuildPathLinks }}{{ if gt $idx 0 }} {{ end }}{{ $link.Word }}{{ end }}</li>
+                </ul>
+                <footer>{{ len .BuiltQuotes }} match{{ len .BuiltQuotes | pluralize "es" }}</footer>
+            </blockquote>
+        </section>
+    {{- end }}
+    {{- if and (gt .NumBuiltQuotes 1) (gt .NumNextWords 1) }}
         {{- range $idx,$group := .NextWordGroups }}
             <section{{ if ne $group.Key "" }} id="{{ $group.Key }}"{{ end }}>
                 <blockquote>
@@ -43,7 +56,7 @@ sitemap-ignored = "true"
                     {{ end }}
                     <ul>
                         {{- range $jdx,$word := $group.Words }}
-                            <li><a href="/b/{{ $.BuildPath }}-{{ $word }}">{{ $word }}</a></li>
+                            <li><a href="/b/{{ $.BuildPath }}-{{ $word | flattenContent }}">{{ $word }}</a></li>
                         {{- end }}
                     </ul>
                     <footer>{{ len $group.Words }} word{{ len $group.Words | pluralize "s" }}</footer>
