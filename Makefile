@@ -28,39 +28,30 @@ ADD_TAGS_DEFAULTS := true
 COMMON_TAGS += papertrail
 COMMON_TAGS += user_auth_basic
 COMMON_TAGS += user_base_htenv
+COMMON_TAGS += drivers_db gorm sqlite
 COMMON_TAGS += driver_kws
-#COMMON_TAGS += driver_kvs_gocache memory memshard imcache bigcache ristretto
-COMMON_TAGS += driver_kvs_gocache memory
+COMMON_TAGS += driver_kvs_gocache memory imcache
 COMMON_TAGS += page_pql
 COMMON_TAGS += page_search
 COMMON_TAGS += page_robots
 COMMON_TAGS += driver_fs_embed
 COMMON_TAGS += driver_fs_zip
+COMMON_TAGS += srv_eql
 COMMON_TAGS += fs_theme fs_menu fs_content fs_public
 
 BUILD_TAGS     = prd embeds $(COMMON_TAGS)
 DEV_BUILD_TAGS = dev locals $(COMMON_TAGS)
 
 ## Custom go.mod locals
-GOPKG_KEYS := SET
+GOPKG_KEYS += _SEMANTIC_THEME
 
-## Semantic Enjin Theme
-SET_GO_PACKAGE := github.com/go-enjin/semantic-enjin-theme
-SET_LOCAL_PATH := ../semantic-enjin-theme
+LANGUAGES := en
+LOCALES_CATALOG := /dev/null
 
-## Go-Enjin gotext package
-#GOXT_GO_PACKAGE = github.com/go-enjin/golang-org-x-text
-#GOXT_LOCAL_PATH = ../golang-org-x-text
-
-export GOGC=10
+#export GOGC=10
 
 include ./Enjin.mk
 
-export BE_BUNTDB_PATH ?= ./buntdb-indexing.db
-export BE_LEVELDB_PATH ?= ./leveldb-indexing.db
-
-LANGUAGES = en
-LOCALES_CATALOG ?= /dev/null
 
 gen-theme-locales:
 	@echo "# generating quoted-fyi theme locales"
@@ -86,33 +77,3 @@ gen-locales: gen-theme-locales
 		echo "# error: locales directory not found" 1>&2; \
 		false; \
 	fi
-
-buntdb-clean:
-	@echo "# cleaning ${BE_BUNTDB_PATH}"
-	@rm -rfv ${BE_BUNTDB_PATH}
-
-buntdb-precache: export BE_DEBUG=true
-buntdb-precache: export BE_LOG_LEVEL=debug
-buntdb-precache: build
-	@if [ -f "${BE_BUNTDB_PATH}" ]; then \
-		echo "# updating ${BE_BUNTDB_PATH}"; \
-	else \
-		echo "# creating ${BE_BUNTDB_PATH}"; \
-	fi
-	@( ./be-quoted-fyi --buntdb-path=${BE_BUNTDB_PATH} buntdb-precache 2>&1 ) \
-		| perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
-
-leveldb-clean:
-	@echo "# cleaning ${BE_LEVELDB_PATH}"
-	@rm -rfv ${BE_LEVELDB_PATH}
-
-leveldb-precache: export BE_DEBUG=true
-leveldb-precache: export BE_LOG_LEVEL=debug
-leveldb-precache: build
-	@if [ -f "${BE_LEVELDB_PATH}" ]; then \
-		echo "# updating ${BE_LEVELDB_PATH}"; \
-	else \
-		echo "# creating ${BE_LEVELDB_PATH}"; \
-	fi
-	@( ./be-quoted-fyi --leveldb-path=${BE_LEVELDB_PATH} leveldb-precache 2>&1 ) \
-		| perl -p -e 'use Term::ANSIColor qw(colored);while (my $$line = <>) {print STDOUT process_line($$line)."\n";}exit(0);sub process_line {my ($$line) = @_;chomp($$line);if ($$line =~ m!^\[(\d+\-\d+\.\d+)\]\s+([A-Z]+)\s+(.+?)\s*$$!) {my ($$datestamp, $$level, $$message) = ($$1, $$2, $$3);my $$colour = "white";if ($$level eq "ERROR") {$$colour = "bold white on_red";} elsif ($$level eq "INFO") {$$colour = "green";} elsif ($$level eq "DEBUG") {$$colour = "yellow";}my $$out = "[".colored($$datestamp, "blue")."]";$$out .= " ".colored($$level, $$colour);if ($$level eq "DEBUG") {$$out .= "\t";if ($$message =~ m!^(.+?)\:(\d+)\s+\[(.+?)\]\s+(.+?)\s*$$!) {my ($$file, $$ln, $$tag, $$info) = ($$1, $$2, $$3, $$4);$$out .= colored($$file, "bright_blue");$$out .= ":".colored($$ln, "blue");$$out .= " [".colored($$tag, "bright_blue")."]";$$out .= " ".colored($$info, "bold cyan");} else {$$out .= $$message;}} elsif ($$level eq "ERROR") {$$out .= "\t".colored($$message, $$colour);} elsif ($$level eq "INFO") {$$out .= "\t".colored($$message, $$colour);} else {$$out .= "\t".$$message;}return $$out;}return $$line;}'
