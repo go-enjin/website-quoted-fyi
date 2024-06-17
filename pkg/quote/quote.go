@@ -1,4 +1,4 @@
-// Copyright (c) 2022  The Go-Enjin Authors
+// Copyright (c) 2024  The Go-Enjin Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@ package quote
 import (
 	"strings"
 
-	"github.com/go-enjin/be/pkg/hash/sha"
-	"github.com/go-enjin/be/pkg/regexps"
-	beStrings "github.com/go-enjin/be/pkg/strings"
+	"github.com/go-corelibs/rxp"
+	"github.com/go-corelibs/shasum"
+	clStrings "github.com/go-corelibs/strings"
 )
 
 type Quote struct {
@@ -31,6 +31,7 @@ type Author struct {
 	Url  string
 	Key  string
 	Name string
+	Last string
 
 	Quotes []*Quote
 }
@@ -92,23 +93,43 @@ func GetFirstCharacters(num int, word string) (key string) {
 }
 
 func GetLastNameCharacter(input string) (key string) {
-	key = GetFirstCharacters(1, beStrings.LastName(input))
+	key = GetFirstCharacters(1, clStrings.LastName(input))
 	return
 }
 
 func GetLastNameKey(input string) (key string) {
-	key = GetFirstCharacters(3, beStrings.LastName(input))
+	key = GetFirstCharacters(3, clStrings.LastName(input))
 	return
 }
 
+var (
+	// rxFlatten is an rxp version of the FlattenContent process.
+	// The original process converted spaces after the non-word characters,
+	// which was actually a useless step. This version converts spaces first
+	// and then converts the actual non-word character range to underscores
+	rxFlatten = rxp.Pipeline{
+		{Transform: strings.TrimSpace},
+		{
+			Search:  rxp.Pattern{rxp.S("+")},
+			Replace: rxp.Replace[string]{}.WithLiteral("_"),
+		},
+		{
+			Search:  rxp.Pattern{rxp.R("-_a-zA-Z0-9", "^", "+")},
+			Replace: rxp.Replace[string]{}.WithLiteral("_"),
+		},
+		{Transform: strings.ToLower},
+	}
+)
+
 func FlattenContent(text string) string {
-	o := strings.TrimSpace(text)
-	o = regexps.RxNonWord.ReplaceAllString(o, "_")
-	o = regexps.RxEmptySpace.ReplaceAllString(o, "_")
-	return strings.ToLower(o)
+	//o := strings.TrimSpace(text)
+	//o = rxNonWords.ReplaceAllString(o, "_")   // [^a-zA-Z0-9]
+	//o = rxEmptySpace.ReplaceAllString(o, "_") // \s+
+	//return strings.ToLower(o)
+	return rxFlatten.Process(text)
 }
 
 func HashContent(content string) (hash string) {
-	hash = sha.DataHashSha1([]byte(FlattenContent(content)))
+	hash = shasum.Sha1Sum([]byte(FlattenContent(content)))
 	return
 }
