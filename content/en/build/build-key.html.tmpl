@@ -36,7 +36,7 @@ sitemap-ignored = "true"
                 <h4>beginning with "{{ $group.Key }}..."</h4>
                 <ul>
                     {{- range $jdx,$word := $group.Words }}
-                        <li><a href="/b/{{ $word }}/">{{ $word }}</a></li>
+                        <li><a href="/b/{{ $word | flattenContent }}/">{{ $word }}</a></li>
                     {{- end }}
                 </ul>
                 <footer>{{ len $group.Words }} word{{ len $group.Words | pluralize "s" }}</footer>
