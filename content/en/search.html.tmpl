@@ -40,16 +40,6 @@ default-num-per-page = 100
                 </ul>
                 {{ end }}
             </aside>
-            {{ if gt (len .SiteSearchResults.Hits) 10 }}
-                <aside>
-                    <div>[scroll to things starting with...]</div>
-                    <ul>
-                        {{ range $idx,$group := .QuotedGroups }}
-                            <li><a href="#{{ $group.Key }}">{{ $group.Key }}</a></li>
-                        {{ end }}
-                    </ul>
-                </aside>
-            {{ end }}
         {{ else }}
             <h2>Search</h2>
             <h3>for things</h3>
