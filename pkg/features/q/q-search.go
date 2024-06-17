@@ -1,4 +1,4 @@
-// Copyright (c) 2022  The Go-Enjin Authors
+// Copyright (c) 2024  The Go-Enjin Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package q
 import (
 	"github.com/blevesearch/bleve/v2/mapping"
 
-	"github.com/go-enjin/golang-org-x-text/language"
+	"github.com/go-corelibs/x-text/language"
 
 	"github.com/go-enjin/be/pkg/search"
 )
