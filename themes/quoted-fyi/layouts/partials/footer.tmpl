@@ -4,12 +4,11 @@
     <p>
       {{- _ "Copyright" -}}
       &nbsp;&copy;
-      {{- .CurrentYear -}}
+      {{- .EnjinInfo.CopyrightYear -}}
       &nbsp;
       {{- .EnjinInfo.CopyrightName -}}
       &nbsp;
       {{- _ .EnjinInfo.CopyrightNotice -}}
     </p>
-    <p>{{ printf "%#+v" .EnjinInfo }}</p>
     <p><small><a href="https://go-enjin.org">(Powered by Go-Enjin)</a></small></p>
 </footer>
