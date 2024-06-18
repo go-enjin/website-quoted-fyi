@@ -11,13 +11,13 @@ require (
 	github.com/go-corelibs/maps v1.2.0
 	github.com/go-corelibs/maths v1.2.1
 	github.com/go-corelibs/path v1.4.2
-	github.com/go-corelibs/rxp v0.10.0
+	github.com/go-corelibs/rxp v0.10.1
 	github.com/go-corelibs/shasum v1.1.1
 	github.com/go-corelibs/slices v1.6.2
 	github.com/go-corelibs/strings v1.9.1
 	github.com/go-corelibs/x-text v0.14.2
-	github.com/go-enjin/be v0.7.1
-	github.com/go-enjin/semantic-enjin-theme v0.7.1
+	github.com/go-enjin/be v0.7.2
+	github.com/go-enjin/semantic-enjin-theme v0.7.2
 	github.com/maruel/natural v1.1.1
 	github.com/spkg/zipfs v0.7.1
 	github.com/urfave/cli/v2 v2.27.2
@@ -77,7 +77,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.4 // indirect
 	github.com/ganbarodigital/go_glob v1.0.0 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
-	github.com/go-chi/chi/v5 v5.0.12 // indirect
+	github.com/go-chi/chi/v5 v5.0.13 // indirect
 	github.com/go-chi/hostrouter v0.2.0 // indirect
 	github.com/go-corelibs/diff v1.1.1 // indirect
 	github.com/go-corelibs/fmtstr v1.2.0 // indirect
@@ -93,7 +93,7 @@ require (
 	github.com/go-corelibs/templates v1.0.1 // indirect
 	github.com/go-corelibs/tmplstr v1.0.1 // indirect
 	github.com/go-corelibs/values v1.2.1 // indirect
-	github.com/go-corelibs/x-sync v0.1.0 // indirect
+	github.com/go-corelibs/x-sync v0.1.1 // indirect
 	github.com/go-curses/cdk v0.5.23 // indirect
 	github.com/go-curses/ctk v0.5.14 // indirect
 	github.com/go-curses/term v1.2.2-gocurses.1 // indirect
