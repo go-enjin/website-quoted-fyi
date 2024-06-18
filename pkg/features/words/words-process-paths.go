@@ -81,7 +81,7 @@ func (f *CFeature) ProcessPagePath(pathWord string, w http.ResponseWriter, r *ht
 
 	selectedStubs, totalStubsCount := f.dbh.GetPaginatedWordPageStubs(word, pageNumber, numPerPage)
 	selectedStubsCount := len(selectedStubs)
-	log.WarnF("found %d stubs for word: %v (paginating %d)", totalStubsCount, word, selectedStubsCount)
+	//log.WarnF("found %d stubs for word: %v (paginating %d)", totalStubsCount, word, selectedStubsCount)
 
 	totalNumPages := int(float64(selectedStubsCount) / float64(numPerPage))
 	matchingStubs := selectedStubs
