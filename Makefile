@@ -42,13 +42,16 @@ COMMON_TAGS += fs_theme fs_menu fs_content fs_public
 BUILD_TAGS     = prd embeds $(COMMON_TAGS)
 DEV_BUILD_TAGS = dev locals $(COMMON_TAGS)
 
+AUTO_CORELIBS_KEYS := true
+
 ## Custom go.mod locals
 GOPKG_KEYS += _SEMANTIC_THEME
 
 LANGUAGES := en
 LOCALES_CATALOG := /dev/null
 
-#export GOGC=10
+#: decrease go gc threshold for production
+export GOGC=50
 
 include ./Enjin.mk
 
