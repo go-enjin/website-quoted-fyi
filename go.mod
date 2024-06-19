@@ -16,8 +16,8 @@ require (
 	github.com/go-corelibs/slices v1.6.2
 	github.com/go-corelibs/strings v1.9.1
 	github.com/go-corelibs/x-text v0.14.2
-	github.com/go-enjin/be v0.7.2
-	github.com/go-enjin/semantic-enjin-theme v0.7.2
+	github.com/go-enjin/be v0.7.3
+	github.com/go-enjin/semantic-enjin-theme v0.7.3
 	github.com/maruel/natural v1.1.1
 	github.com/spkg/zipfs v0.7.1
 	github.com/urfave/cli/v2 v2.27.2
@@ -80,18 +80,18 @@ require (
 	github.com/go-chi/chi/v5 v5.0.13 // indirect
 	github.com/go-chi/hostrouter v0.2.0 // indirect
 	github.com/go-corelibs/diff v1.1.1 // indirect
-	github.com/go-corelibs/fmtstr v1.2.0 // indirect
+	github.com/go-corelibs/fmtstr v1.2.1 // indirect
 	github.com/go-corelibs/globs v1.0.0 // indirect
 	github.com/go-corelibs/go-sqlbuilder v1.1.0 // indirect
 	github.com/go-corelibs/htmlcss v1.0.1 // indirect
-	github.com/go-corelibs/lang v0.3.1 // indirect
+	github.com/go-corelibs/lang v0.3.2 // indirect
 	github.com/go-corelibs/mime v1.0.1 // indirect
 	github.com/go-corelibs/regexps v1.2.0 // indirect
 	github.com/go-corelibs/replace v1.3.2 // indirect
 	github.com/go-corelibs/runes v1.1.0 // indirect
 	github.com/go-corelibs/strcases v1.0.0 // indirect
 	github.com/go-corelibs/templates v1.0.1 // indirect
-	github.com/go-corelibs/tmplstr v1.0.1 // indirect
+	github.com/go-corelibs/tmplstr v1.1.0 // indirect
 	github.com/go-corelibs/values v1.2.1 // indirect
 	github.com/go-corelibs/x-sync v0.1.1 // indirect
 	github.com/go-curses/cdk v0.5.23 // indirect
