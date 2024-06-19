@@ -50,9 +50,6 @@ GOPKG_KEYS += _SEMANTIC_THEME
 LANGUAGES := en
 LOCALES_CATALOG := /dev/null
 
-#: decrease go gc threshold for production
-export GOGC=50
-
 include ./Enjin.mk
 
 
