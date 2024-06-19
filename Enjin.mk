@@ -17,7 +17,7 @@
 #: uncomment to echo instead of execute
 #CMD=echo
 
-ENJIN_MK_VERSION := v0.2.21
+ENJIN_MK_VERSION := v0.2.22
 
 #
 #: phony make targets
@@ -946,7 +946,7 @@ tidy: _golang
 
 ifeq (${AUTO_CORELIBS_KEYS},true)
 _FOUND_CORELIBS := $(shell \
-	grep -h '"github.com/go-corelibs/' `find-go` \
+	grep -h '"github.com/go-corelibs/' `find * -type f -name "*.go"` \
 	| perl -pe 's!^[^"]*"github.com/go-corelibs/([^"/]*).*\s*$$!$$1\n!' \
 	| sort -u)
 endif
@@ -1272,6 +1272,35 @@ force-stop-all: stop
 
 stop-profiling: STOP_PROFILING=true
 stop-profiling: stop
+
+pre-release-profile.mem: export PRE_RELEASE_BUILD=true
+pre-release-profile.mem: export BE_PROFILE_MODE=mem
+pre-release-profile.mem: export BE_PROFILE_PATH=${PROFILE_PATH}
+pre-release-profile.mem: build dev
+	@if [ -f mem.pprof ]; then \
+		echo "# <Enter> to load mem.pprof, <CTRL+c> to abort"; \
+		read JUNK; \
+		echo "# pprof service starting (:8080)"; \
+		bash -c 'set -m; go tool pprof -http=:8080 mem.pprof'; \
+		echo ""; \
+		echo "# pprof service shutdown"; \
+	else \
+		echo "# missing mem.pprof"; \
+	fi
+
+release-profile.mem: export BE_PROFILE_MODE=mem
+release-profile.mem: export BE_PROFILE_PATH=${PROFILE_PATH}
+release-profile.mem: release dev
+	@if [ -f mem.pprof ]; then \
+		echo "# <Enter> to load mem.pprof, <CTRL+c> to abort"; \
+		read JUNK; \
+		echo "# pprof service starting (:8080)"; \
+		bash -c 'set -m; go tool pprof -http=:8080 mem.pprof'; \
+		echo ""; \
+		echo "# pprof service shutdown"; \
+	else \
+		echo "# missing mem.pprof"; \
+	fi
 
 profile.mem: export BE_PROFILE_MODE=mem
 profile.mem: export BE_PROFILE_PATH=${PROFILE_PATH}
