@@ -113,16 +113,8 @@ func (f *CFeature) Process(ctx context.Context, content string) (html template.H
 	description := ctx.Get("Description").(string)
 	quoteHash := ctx.Get("QuoteHash").(string)
 	quoteAuthor := ctx.Get("QuoteAuthor").(string)
-	quoteCategories := ctx.Get("QuoteCategories").([]string)
 	quoteUrl := scheme + "://" + host + pgUrl
 	quoteBody := "Quote " + quoteHash + ":\n\n\"" + content + "\"\n\n -- " + quoteAuthor
-
-	twitterUrl := "https://twitter.com/share"
-	twitterUrl += "?url=" + quoteUrl
-	twitterUrl += "&text=" + quoteBody
-	twitterUrl += "&via=quoted_fyi"
-	twitterUrl += "&hashtags=" + strings.Join(quoteCategories, ",") + ",QuotedFYI"
-	ctx.SetSpecific("QuoteShareTwitterUrl", twitterUrl)
 
 	emailUrl := "mailto:"
 	emailUrl += "?subject=" + description
