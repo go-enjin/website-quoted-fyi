@@ -12,14 +12,60 @@ url = "/about"
     <blockquote>
         <h4>on curiosity</h4>
         <p>
-            This site is a curious machine for exploring famous quotes. Each
-            quote is given a unique identifier and presented with each word of
-            the quotation cross-linked with other quotes that include the given
-            word. This may seem odd and that is because it is in fact not
-            normal.
-            <br/>
-            <br/>
-            Enjoy this curious machine of exploring all these things quoted for
+            This site is a curious machine for exploring {{ .NumQuotes | intcomma }}
+            pages of famous quotes indexed within this site.
+            <br />
+            <br />
+            Each quote is its own page and given a unique identifier for the
+            page titles. Simple counting numbers could have been used but there
+            are two main issues with doing this. The first is that, thematically
+            speaking, viewing a listing of search results for example and seeing
+            a strangely sorted list of one-to-six digit numbers is difficult to
+            style nicely without odd stair-casing and other visual oddities. The
+            second, and actually more important, is that by numbering the
+            quotes, humans visiting the site will be misled with a built-in bias
+            thinking that the first quote is somehow more important than the
+            last. Presenting nicely styled pages of unbiased quotations is a
+            primary requirement in the design of this site.
+            <br />
+            <br />
+            Instead of the one-to-six digit numbering, Quoted.FYI uses a bit of
+            math to take the content of the quote and turn it into a unique
+            number, which is presented as an eight character hexadecimal number.
+            So, all those strange numbers like <a href="/q/56b0edce121ab627dc7367a8696c506a22483986">56b0edce</a>
+            are actually the result of the <q>SHA 1 hashing</q> processing of the
+            content. The actual page URL is the complete 40 character value and
+            only the first eight characters are presented within any given page.
+            <br />
+            <br />
+            Another option for the titling of quote pages could have been the
+            first few words of each quote, however, this proved to be a very
+            poor presentation method as well. This idea though, it was actually
+            so interesting to implement that it evolved into the <a href="/build">build</a>
+            section of the site and was not used for page titles at all in order
+            to keep the quotes a bit of a mystery during the quote building
+            process.
+            <br />
+            <br />
+            The quote pages are presented with each word cross-linked with all
+            other quotes that include the given word. This may seem odd to do on
+            the internet and that is because it is in fact not normal. This
+            word-linking is done to allow for more ways of exploring the content
+            but also to encourage traffic on the site.
+            <br />
+            <br />
+            Quoted.FYI is a proof-of-concept site, used to demonstrate and
+            stress-test the upper limits of the Go-Enjin system powering this
+            site. Currently, the site is averaging more than a million hits
+            every month and up until recently, was <q>performing</q>, just not
+            performing well. This was due to a number of factors in the
+            evolution of the Go-Enjin project and things are now at a stage
+            where Quoted.FYI is capable of running multiple instances on a tiny
+            VPS, and able to serve pages in a fraction of the time it used to
+            take.
+            <br />
+            <br />
+            Please enjoy this curious machine of exploring things quoted for
             your information.
         </p>
         <footer>author</footer>
