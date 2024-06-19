@@ -192,6 +192,22 @@ func (f *CFeature) PerformSearch(tag language.Tag, input string, size, pg int) (
 		}
 	}
 
+	if len(mustWids)+len(shouldWids)+len(notWids) == 0 {
+		// none of the terms exist in the eql data sources
+		bsr = &bleve.SearchResult{
+			Status: &bleve.SearchStatus{
+				Total:      0,
+				Failed:     0,
+				Successful: 0,
+			},
+			Hits:     nil,
+			Total:    uint64(0),
+			Request:  nil,
+			MaxScore: 0,
+		}
+		return
+	}
+
 	var total int
 	var query string
 
