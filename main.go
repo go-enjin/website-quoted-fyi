@@ -118,11 +118,12 @@ func main() {
 			search.New().SetSearchPath("/search").Make(),
 			qfSearch.New().Make(),
 			robots.New().
+				SiteRobotsHeader("none").
 				AddRuleGroup(robots.NewRuleGroup().
 					AddUserAgent("*").
-					AddAllowed("/").
-					Make(),
-				).Make(),
+					AddDisallowed("/").
+					Make()).
+				Make(),
 		).
 		SetStatusPage(404, "/404").
 		SetStatusPage(500, "/500").
