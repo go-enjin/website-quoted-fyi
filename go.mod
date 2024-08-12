@@ -1,6 +1,6 @@
 module github.com/go-enjin/website-quoted-fyi
 
-go 1.22.4
+go 1.22.6
 
 require (
 	github.com/blevesearch/bleve/v2 v2.4.0
