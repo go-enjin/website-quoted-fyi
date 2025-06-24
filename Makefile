@@ -25,7 +25,7 @@ DENY_DURATION := 600
 
 ADD_TAGS_DEFAULTS := true
 
-COMMON_TAGS += papertrail
+COMMON_TAGS += papertrail syslogger
 COMMON_TAGS += user_auth_basic
 COMMON_TAGS += user_base_htenv
 COMMON_TAGS += drivers_db gorm sqlite
